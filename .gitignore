@@ -1,0 +1,26 @@
+# Python Cache Files
+__pycache__/
+
+# Virtual Environment
+venv/
+
+# Environment Variables
+.env
+
+# Additional Python files
+*.pyc
+*.pyo
+*.pyw
+
+# IDE files
+.vscode/
+.idea/
+
+# Chart outputs (matplotlib)
+*.png
+*.pdf
+
+# OS files
+.DS_Store
+Thumbs.db
+

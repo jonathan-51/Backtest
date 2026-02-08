@@ -1,26 +1,30 @@
-import os
-import time
 import pandas as pd
-from datetime import datetime, timedelta
+from datetime import datetime
 from pathlib import Path
 from ib_insync import IB, Stock, util
-from config import BacktestConfig, DataFetcherConfig, DataConfig
+from config import DataFetcherConfig, DataConfig
+import logging
 
 class DataFetcher:
+    """Fetches historical OHLCVA data from Interactive Brokers
+    
+    Manages the IB connection lifecycle, retrieves and caches historical 
+    bars, and performs data cleaning and validation
+    """
     def __init__(self, config: DataFetcherConfig, data_config: DataConfig):
         self.config = config
         self.data_config = data_config
         self.ib = IB()
         self.connected = False
         self.cache_dir = Path(data_config.data_path)
-        self.logger = None
+        self.logger = logging.getLogger(__name__)
         self.request_count = 0
-        pass
 
-    def connect(self):
+
+    def connect(self) -> bool:
         # Check if already connected
         if self.connected:
-            print("Already connected to IB")
+            self.logger.info("Already connected to IB")
             return True
         
         # Try to connect
@@ -35,32 +39,36 @@ class DataFetcher:
             # Verify connection
             if self.ib.isConnected():
                 self.connected = True
-                print(f"Connected to IB at {self.config.tws_host}:{self.config.tws_port}")
+                self.logger.info(f"Connected to IB at {self.config.tws_host}:{self.config.tws_port}")
                 return True
             else:
-                print("Connection failed")
+                self.logger.error("Connection failed")
                 self.connected = False
                 return False
         
         # Handle errors
         except Exception as e:
-            print(f"Failed to connect to IB: {e}")
+            self.logger.error(f"Failed to connect to IB: {e}")
             self.connected = False
             return False
     
-    def fetch_historical_data(self,symbol:str):
+    def fetch_historical_data(self,symbol:str) -> pd.DataFrame | None:
 
         # Check connection
         if not self.connected:
-            raise ConnectionError("Not connected to IB. Call connect() first")
+            self.logger.error("Not connected to IB. Call connect() first")
+            return None
+        if not symbol or not isinstance(symbol,str):
+            self.logger.error(f"Symbol must be non-empty string, got: {symbol}")
+            return None
         
         # Try cache first
         if self.data_config.cache_data:
             cached_df = self._load_from_cache(symbol)
             if cached_df is not None:
-                print(f"Loaded {symbol} from cache ({len(cached_df)} bars)")
+                self.logger.info(f"Loaded {symbol} from cache ({len(cached_df)} bars)")
                 return cached_df
-        print(f"Fetching {symbol} from IB...")
+        self.logger.info(f"Fetching {symbol} from IB...")
 
         # Create Contract
         contract = Stock(symbol, 'SMART', 'USD')
@@ -91,13 +99,13 @@ class DataFetcher:
                 formatDate=1,
             )
         except Exception as e:
-            print(f"Failed to fetch {symbol}: {e}")
-            return pd.DataFrame()
+            self.logger.error(f"Failed to fetch {symbol}: {e}")
+            return None
         
         # Convert to DataFrame
         if not bars:
-            print(f"No data returned for {symbol}")
-            return pd.DataFrame()
+            self.logger.error(f"No data returned for {symbol}")
+            return None
         
         df = util.df(bars)
 
@@ -106,38 +114,38 @@ class DataFetcher:
 
         # Validate data
         if not self._validation_data(df):
-            print(f"Data validation failed for {symbol}")
-            return pd.DataFrame()
+            self.logger.error(f"Data validation failed for {symbol}")
+            return None
         
         # Save to cache
         if self.data_config.cache_data:
             self._save_to_cache(symbol,df)
 
         # Return
-        print(f"Fetched {len(df)} bars for {symbol}")
+        self.logger.info(f"Fetched {len(df)} bars for {symbol}")
         return df
 
-    def disconnect(self):
+    def disconnect(self) -> bool:
 
         # Check if connected 
         if not self.connected:
-            print("Not connected to IB")
+            self.logger.info("Not connected to IB")
             return True
         
         # Try to disconnect
         try:
             self.ib.disconnect()
             self.connected = False
-            print("Disconnected from IB")
+            self.logger.info("Disconnected from IB")
             return True
         
         # Handle errors
         except Exception as e:
-            print(f"Error disconnecting from IB: {e}")
+            self.logger.error(f"Error disconnecting from IB: {e}")
             self.connected = False
             return False
 
-    def _clean_data(self,df: pd.DataFrame):
+    def _clean_data(self,df: pd.DataFrame) -> pd.DataFrame:
         if df.empty:
             return df
         
@@ -160,106 +168,97 @@ class DataFetcher:
 
         # Check for missing values
         if df.isnull().any().any():
-            print(f"Warning: Found {df.isnull().sum().sum()} missing values")
+            self.logger.warning(f"Warning: Found {df.isnull().sum().sum()} missing values")
             df = df.fillna(method='ffill')
             df = df.fillna(method='bfill')
 
         # Check for negative prices
         if (df[['open','high','close','low']] < 0).any().any():
-            print("Warning: Found negative values")
+            self.logger.warning("Warning: Found negative values")
         
         # Zero volume
         if (df['volume'] == 0).any():
-            print(f"Warning: Found {(df['volume'] == 0).sum()} bars with zero volume")
+            self.logger.warning(f"Warning: Found {(df['volume'] == 0).sum()} bars with zero volume")
 
         # Check for High < Low
         if (df['high'] < df['low']).any():
-            print('Warning: Found High < Low')
+            self.logger.warning('Warning: Found High < Low')
             df[['high','low']] = df[['low','high']]
 
         # Check for close outside high-low range
         invalid = (df['close'] > df['high']) | (df['close'] < df['low'])
         if invalid.any():
-            print(f"Warning: Found {invalid.sum()} bars with close outside high-low range")
+            self.logger.warning(f"Warning: Found {invalid.sum()} bars with close outside high-low range")
 
-        print(f"Cleaned Data: {len(df)} bars")
+        self.logger.info(f"Cleaned Data: {len(df)} bars")
         return df
     
-    def _validation_data(self,df: pd.DataFrame):
+    def _validation_data(self,df: pd.DataFrame) -> bool:
         
         # Check if DataFrame is empty
         if df.empty:
-            print("Validation failed: Empty Dataframe")
+            self.logger.error("Validation failed: Empty Dataframe")
             return False
 
         # Check required columns exist
         required_cols = ['date','open','high','low','close','volume']
         if not all(col in df.columns for col in required_cols):
-            print(f"Validation failed: Missing required columns. Expect {required_cols}")
+            self.logger.error(f"Validation failed: Missing required columns. Expect {required_cols}")
             return False
         
         # Check minimum data points
-        if len(df) < 20:
-            print(f"Validation failed: Only {len(df)} bars, need at least 20")
+        if len(df) < self.data_config.min_bars_required:
+            self.logger.error(f"Validation failed: Only {len(df)} bars, need at least {self.data_config.min_bars_required}")
             return False
         
         # Check no NaN values remain
         if df.isnull().any().any():
-            print("Validation failed; Found Nan values")
+            self.logger.error("Validation failed; Found Nan values")
             return False
         
         # Check if any High < Open
         if (df['high'] < df['open']).any():
-            print("Validation failed: Found High < Open")
+            self.logger.error("Validation failed: Found High < Open")
             return False
 
         # Check if any High < Close
         if (df['high'] < df['close']).any():
-            print("Validation failed: Found High < Close")
+            self.logger.error("Validation failed: Found High < Close")
             return False
 
         # Check if any Low > Open
         if (df['low'] > df['open']).any():
-            print("Validation failed: Found Low > Open")
+            self.logger.error("Validation failed: Found Low > Open")
             return False
         
         # Check if any Low > Close
         if (df['low'] > df['close']).any():
-            print(f"Validation failed: Found Low < Close")
+            self.logger.error(f"Validation failed: Found Low < Close")
             return False 
         
         # Check volume is positive
         if not (df['volume'] > 0).all():
-            print("Validation failed: Found non-positive volume")
+            self.logger.error("Validation failed: Found non-positive volume")
             return False
         
         # Check latest date is not in the future
         if df['date'].max().date() > datetime.now().date():
-            print("Validation failed: Data contains future dates")
+            self.logger.error("Validation failed: Data contains future dates")
             return False
         
         # Check dates are sorted and in ascending order
         if not df['date'].is_monotonic_increasing:
-            print("Validation failed: Dates are not sorted in ascending order")
+            self.logger.error("Validation failed: Dates are not sorted in ascending order")
             return False
 
-        print("Validation passed")
+        self.logger.info("Validation passed")
         return True
     
-    def _save_to_cache(self,a,b):
-        pass
-    def _load_from_cache(self,a):
+    def _save_to_cache(self,symbol: str,df: pd.DataFrame) -> bool:
+        cache_file = self.cache_dir / f"{symbol}.csv"
+
+        return True
+    def _load_from_cache(self,symbol: str) -> pd.DataFrame | None:
         return None
     def fetch_all_symbols(self):
         pass
-
-data_fetcher_config = DataFetcherConfig()
-data_config = DataConfig()
-config = BacktestConfig()
-
-fetcher = DataFetcher(data_fetcher_config,data_config)
-result = fetcher.connect()
-
-aapl_data = fetcher.fetch_historical_data('AAPL')
-fetcher.disconnect()
-print(fetcher.connected)

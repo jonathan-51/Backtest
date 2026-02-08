@@ -11,6 +11,7 @@ venv/
 *.pyc
 *.pyo
 *.pyw
+.project_context.txt
 
 # IDE files
 .vscode/

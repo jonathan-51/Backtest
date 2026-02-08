@@ -5,6 +5,10 @@ import os
 
 @dataclass
 class BacktestConfig:
+    """Configuration for backtest simulation parameters including 
+    capital, costs, and position sizing"""
+    
+    
     initial_capital: float = 30000
     commission_rate: float = 0.001
     slippage: float = 0.0005
@@ -20,12 +24,17 @@ class BacktestConfig:
         
 @dataclass
 class DataConfig:
+    """
+    Configuration for market data retrieval including 
+    ticker symbols, timeframe, storage path, and date range
+    """
     symbols: List[str] = field(default_factory=lambda:['AAPL', 'MSFT', 'GOOGL','TSLA'])
     timeframe: str = '1d'
     data_path: str = './data'
     cache_data:bool = True
     lookback_period: str = "1 Y"
     end_date: datetime = datetime(2025,1,1)
+    min_bars_required: int = 20
 
     def __post_init__(self):
         if not os.path.exists(self.data_path):
@@ -33,6 +42,11 @@ class DataConfig:
 
 @dataclass
 class DataFetcherConfig:
+    """Configuration for Interactive Brokers TWS connection settings
+    
+    Attributes:
+        request_pause: Seconds to wait between API requests to avoid rate limiting
+    """
     tws_host: str = "127.0.0.1"
     tws_port: int = 7497
     client_id: int = 1

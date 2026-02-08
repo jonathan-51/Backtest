@@ -141,6 +141,9 @@ class DataFetcher:
         if df.empty:
             return df
         
+        # Remove average column
+        df = df[['date','open','high','low','close','volume']]
+
         # Remove duplicates
         df = df.drop_duplicates(subset=['date'], keep='first')
 
@@ -181,8 +184,68 @@ class DataFetcher:
 
         print(f"Cleaned Data: {len(df)} bars")
         return df
-    def _validation_data(self,data):
+    
+    def _validation_data(self,df: pd.DataFrame):
+        
+        # Check if DataFrame is empty
+        if df.empty:
+            print("Validation failed: Empty Dataframe")
+            return False
+
+        # Check required columns exist
+        required_cols = ['date','open','high','low','close','volume']
+        if not all(col in df.columns for col in required_cols):
+            print(f"Validation failed: Missing required columns. Expect {required_cols}")
+            return False
+        
+        # Check minimum data points
+        if len(df) < 20:
+            print(f"Validation failed: Only {len(df)} bars, need at least 20")
+            return False
+        
+        # Check no NaN values remain
+        if df.isnull().any().any():
+            print("Validation failed; Found Nan values")
+            return False
+        
+        # Check if any High < Open
+        if (df['high'] < df['open']).any():
+            print("Validation failed: Found High < Open")
+            return False
+
+        # Check if any High < Close
+        if (df['high'] < df['close']).any():
+            print("Validation failed: Found High < Close")
+            return False
+
+        # Check if any Low > Open
+        if (df['low'] > df['open']).any():
+            print("Validation failed: Found Low > Open")
+            return False
+        
+        # Check if any Low > Close
+        if (df['low'] > df['close']).any():
+            print(f"Validation failed: Found Low < Close")
+            return False 
+        
+        # Check volume is positive
+        if not (df['volume'] > 0).all():
+            print("Validation failed: Found non-positive volume")
+            return False
+        
+        # Check latest date is not in the future
+        if df['date'].max().date() > datetime.now().date():
+            print("Validation failed: Data contains future dates")
+            return False
+        
+        # Check dates are sorted and in ascending order
+        if not df['date'].is_monotonic_increasing:
+            print("Validation failed: Dates are not sorted in ascending order")
+            return False
+
+        print("Validation passed")
         return True
+    
     def _save_to_cache(self,a,b):
         pass
     def _load_from_cache(self,a):

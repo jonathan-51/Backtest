@@ -9,8 +9,6 @@ class BacktestConfig:
     commission_rate: float = 0.001
     slippage: float = 0.0005
     spreads: float = 0.1
-    start_date: datetime = datetime.now() - timedelta(days=365)
-    end_date: datetime = datetime.now()
     position_size: float = 0.33
     max_positions: int = 3
 
@@ -26,6 +24,8 @@ class DataConfig:
     timeframe: str = '1d'
     data_path: str = './data'
     cache_data:bool = True
+    lookback_period: str = "1 Y"
+    end_date: datetime = datetime(2025,1,1)
 
     def __post_init__(self):
         if not os.path.exists(self.data_path):

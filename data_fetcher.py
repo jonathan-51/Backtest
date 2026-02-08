@@ -66,7 +66,6 @@ class DataFetcher:
         if self.data_config.cache_data:
             cached_df = self._load_from_cache(symbol)
             if cached_df is not None:
-                self.logger.info(f"Loaded {symbol} from cache ({len(cached_df)} bars)")
                 return cached_df
         self.logger.info(f"Fetching {symbol} from IB...")
 
@@ -114,7 +113,6 @@ class DataFetcher:
 
         # Validate data
         if not self._validation_data(df):
-            self.logger.error(f"Data validation failed for {symbol}")
             return None
         
         # Save to cache
@@ -254,11 +252,38 @@ class DataFetcher:
         self.logger.info("Validation passed")
         return True
     
-    def _save_to_cache(self,symbol: str,df: pd.DataFrame) -> bool:
+    def _save_to_cache(self, symbol: str, df: pd.DataFrame) -> bool:
+
         cache_file = self.cache_dir / f"{symbol}.csv"
 
-        return True
-    def _load_from_cache(self,symbol: str) -> pd.DataFrame | None:
-        return None
+        try:
+            # Write DataFrame to CSV with specific options
+            df.to_csv(cache_file, index=False, date_format='%Y-%m-%d %H:%M:%S')
+            self.logger.info(f"Cached {symbol} ({len(df)} bars) to {cache_file}")
+            return True
+
+        except Exception as e:
+            self.logger.error(f"Failed to cache {symbol}: {e}")
+            return False
+        
+    def _load_from_cache(self, symbol: str) -> pd.DataFrame | None:
+
+        cache_file = self.cache_dir / f"{symbol}.csv"
+
+        # Check if file exists
+        if not cache_file.exists():
+            self.logger.debug(f"No cache found for {symbol}")
+            return None
+
+        try:
+            # Read CSV and parse dates
+            df = pd.read_csv(cache_file, parse_dates=['date'])
+            self.logger.info(f"Loaded {symbol} from cache ({len(df)} bars)")
+            return df
+
+        except Exception as e:
+            self.logger.error(f"Failed to load cache for {symbol}: {e}")
+            return None
+        
     def fetch_all_symbols(self):
         pass

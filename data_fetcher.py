@@ -118,7 +118,25 @@ class DataFetcher:
         return df
 
     def disconnect(self):
-        pass
+
+        # Check if connected 
+        if not self.connected:
+            print("Not connected to IB")
+            return True
+        
+        # Try to disconnect
+        try:
+            self.ib.disconnect()
+            self.connected = False
+            print("Disconnected from IB")
+            return True
+        
+        # Handle errors
+        except Exception as e:
+            print(f"Error disconnecting from IB: {e}")
+            self.connected = False
+            return False
+
     
     def _clean_data(self,data):
         return data
@@ -139,4 +157,5 @@ fetcher = DataFetcher(data_fetcher_config,data_config)
 result = fetcher.connect()
 
 aapl_data = fetcher.fetch_historical_data('AAPL')
-print(aapl_data)
+fetcher.disconnect()
+print(fetcher.connected)

@@ -4,6 +4,9 @@ from pathlib import Path
 from ib_insync import IB, Stock, util
 from config import DataFetcherConfig, DataConfig
 import logging
+from typing import Dict
+import time
+from dateutil.relativedelta import relativedelta
 
 class DataFetcher:
     """Fetches historical OHLCVA data from Interactive Brokers
@@ -11,6 +14,20 @@ class DataFetcher:
     Manages the IB connection lifecycle, retrieves and caches historical 
     bars, and performs data cleaning and validation
     """
+
+    TIMEFRAME_MAP = {
+        '1m': '1 min',
+        '5m': '5 mins',
+        '15m': '15 mins',
+        '30m': '30 mins',
+        '1h': '1 hour',
+        '1d': '1 day',
+        '1w': '1 week',
+        '1M': '1 month'
+    }
+
+    INTRADAY_TIMEFRAMES = {'1m','5m','15m','30m','1h'}
+
     def __init__(self, config: DataFetcherConfig, data_config: DataConfig):
         self.config = config
         self.data_config = data_config
@@ -20,8 +37,8 @@ class DataFetcher:
         self.logger = logging.getLogger(__name__)
         self.request_count = 0
 
-
     def connect(self) -> bool:
+        """Establish a readonly connection to IB TWS."""
         # Check if already connected
         if self.connected:
             self.logger.info("Already connected to IB")
@@ -52,8 +69,9 @@ class DataFetcher:
             self.connected = False
             return False
     
-    def fetch_historical_data(self,symbol:str) -> pd.DataFrame | None:
-
+    def fetch_historical_data(self,symbol:str, timeframe:str) -> pd.DataFrame | None:
+        """Fetch, clean, and validate historical bars for a symbol and timeframe."""
+        
         # Check connection
         if not self.connected:
             self.logger.error("Not connected to IB. Call connect() first")
@@ -64,28 +82,46 @@ class DataFetcher:
         
         # Try cache first
         if self.data_config.cache_data:
-            cached_df = self._load_from_cache(symbol)
+            cached_df = self._load_from_cache(symbol,timeframe)
             if cached_df is not None:
                 return cached_df
-        self.logger.info(f"Fetching {symbol} from IB...")
+        self.logger.info(f"Fetching {symbol}_{timeframe} from IB...")
 
         # Create Contract
         contract = Stock(symbol, 'SMART', 'USD')
 
-        # Map timeframe
-        timeframe_map = {
-            '1m': '1 min',
-            '5m': '5 mins',
-            '15m': '15 mins',
-            '30m': '30 mins',
-            '1h': '1 hour',
-            '1d': '1 day',
-            '1w': '1 week',
-            '1M': '1 month'
-        }
+        bar_size = self.TIMEFRAME_MAP.get(timeframe,'1 day')
 
-        bar_size = timeframe_map.get(self.data_config.timeframe,'1 day')
+        # Fetch bars - route based on timeframe
+        if timeframe in self.INTRADAY_TIMEFRAMES:
+            all_bars = self._fetch_bars_chunked(contract, bar_size,symbol,timeframe)
+        else:
+            all_bars = self._fetch_bars_single(contract, bar_size,symbol,timeframe)
+        
+        if not all_bars:
+            return None
+        
+        # Convert to DataFrame
+        df = util.df(all_bars)
 
+        # Clean data
+        df = self._clean_data(df)
+
+        # Validate data
+        if not self._validation_data(df):
+            return None
+        
+        # Save to cache
+        if self.data_config.cache_data:
+            self._save_to_cache(symbol,df,timeframe)
+
+        # Return
+        self.logger.info(f"Fetched {len(df)} bars for {symbol}_{timeframe}")
+        return df
+
+    def _fetch_bars_single(self,contract:Stock,bar_size:str,symbol:str,timeframe:str) -> list:
+        """Single IB request for daily/weekly/monthly bars."""
+        
         # Request data from IB
         try:
             bars = self.ib.reqHistoricalData(
@@ -97,35 +133,81 @@ class DataFetcher:
                 useRTH=True,
                 formatDate=1,
             )
+            return bars
+        
         except Exception as e:
-            self.logger.error(f"Failed to fetch {symbol}: {e}")
-            return None
-        
-        # Convert to DataFrame
-        if not bars:
-            self.logger.error(f"No data returned for {symbol}")
-            return None
-        
-        df = util.df(bars)
+            self.logger.error(f"Failed to fetch data for {symbol}_{timeframe}: {e}")
+            return []
 
-        # Clean data
-        df = self._clean_data(df)
+    def _fetch_bars_chunked(self,contract:Stock,bar_size:str,symbol:str,timeframe:str) -> list:
+        """Fetch intraday bars in monthly chunks to avoid IB timeouts."""
 
-        # Validate data
-        if not self._validation_data(df):
-            return None
-        
-        # Save to cache
-        if self.data_config.cache_data:
-            self._save_to_cache(symbol,df)
+        all_bars = []
+        chunk_end = self.data_config.end_date
 
-        # Return
-        self.logger.info(f"Fetched {len(df)} bars for {symbol}")
-        return df
+        # Calculate start date from lookback_period (e.g. "1 Y" -> 1 year back)
+        amount, unit = self.data_config.lookback_period.split()
+        amount = int(amount)
+        unit_map = {'D': 'days', 'W': 'weeks', 'M': 'months', 'Y': 'years'}
+        start_date = chunk_end - relativedelta(**{unit_map[unit]: amount})
+
+        # Calculate total chunks for progress
+        total_chunks = 0
+        temp = chunk_end
+        while temp > start_date:
+            total_chunks += 1
+            temp -= relativedelta(months=1)
+
+        for i in range(total_chunks):
+            self.logger.info(f"Chunk[{i+1}/{total_chunks}] ending {chunk_end.strftime('%Y-%m-%d')}")
+
+            try:
+                bars = self.ib.reqHistoricalData(
+                    contract=contract,
+                    endDateTime=chunk_end,
+                    durationStr='1 M',
+                    barSizeSetting=bar_size,
+                    whatToShow='Trades',
+                    useRTH=True,
+                    formatDate=1,
+                    timeout=120,
+                )
+            except Exception as e:
+                self.logger.error(f"Failed to fetch data for {symbol}_{timeframe}: {e}")
+                return []
+
+            if bars:
+                all_bars.extend(bars)
+
+            # Move back 1 month
+            chunk_end -= relativedelta(months=1)
+
+            # Rate limit between chunks (skip after last)
+            if i < total_chunks - 1:
+                time.sleep(self.config.request_pause)
+
+        return all_bars
+
+    def fetch_all_timeframes(self,symbol:str) -> Dict[str,pd.DataFrame]:
+        """Fetch all configured timeframes for a symbol, returning a dict keyed by timeframe."""
+        results = {}
+        timeframes = self.data_config.timeframes
+
+        for i, timeframe in enumerate(timeframes):
+            self.logger.info(f"[{i+1}/{len(timeframes)}] Fetching {symbol} {timeframe}...")
+
+            df = self.fetch_historical_data(symbol,timeframe)
+
+            if df is not None:
+                results[timeframe] = df
+            if i < len(timeframes) - 1:
+                time.sleep(self.config.request_pause)
+
+        return results
 
     def disconnect(self) -> bool:
-
-        # Check if connected 
+        """Close the IB TWS connection."""
+        # Check if connected
         if not self.connected:
             self.logger.info("Not connected to IB")
             return True
@@ -144,6 +226,7 @@ class DataFetcher:
             return False
 
     def _clean_data(self,df: pd.DataFrame) -> pd.DataFrame:
+        """Fix dtypes, remove duplicates, and handle OHLCV anomalies."""
         if df.empty:
             return df
         
@@ -192,7 +275,7 @@ class DataFetcher:
         return df
     
     def _validation_data(self,df: pd.DataFrame) -> bool:
-        
+        """Run integrity checks on OHLCV data, returning False on failure."""
         # Check if DataFrame is empty
         if df.empty:
             self.logger.error("Validation failed: Empty Dataframe")
@@ -252,37 +335,37 @@ class DataFetcher:
         self.logger.info("Validation passed")
         return True
     
-    def _save_to_cache(self, symbol: str, df: pd.DataFrame) -> bool:
-
-        cache_file = self.cache_dir / f"{symbol}.csv"
+    def _save_to_cache(self, symbol: str, df: pd.DataFrame, timeframe:str) -> bool:
+        """Write DataFrame to CSV cache file."""
+        cache_file = self.cache_dir / f"{symbol}_{timeframe}.csv"
 
         try:
             # Write DataFrame to CSV with specific options
             df.to_csv(cache_file, index=False, date_format='%Y-%m-%d %H:%M:%S')
-            self.logger.info(f"Cached {symbol} ({len(df)} bars) to {cache_file}")
+            self.logger.info(f"Cached {symbol}_{timeframe} ({len(df)} bars) to {cache_file}")
             return True
 
         except Exception as e:
-            self.logger.error(f"Failed to cache {symbol}: {e}")
+            self.logger.error(f"Failed to cache {symbol}_{timeframe}: {e}")
             return False
         
-    def _load_from_cache(self, symbol: str) -> pd.DataFrame | None:
-
-        cache_file = self.cache_dir / f"{symbol}.csv"
+    def _load_from_cache(self, symbol: str, timeframe:str) -> pd.DataFrame | None:
+        """Load DataFrame from CSV cache file, or None if not cached."""
+        cache_file = self.cache_dir / f"{symbol}_{timeframe}.csv"
 
         # Check if file exists
         if not cache_file.exists():
-            self.logger.debug(f"No cache found for {symbol}")
+            self.logger.debug(f"No cache found for {symbol}_{timeframe}")
             return None
 
         try:
             # Read CSV and parse dates
             df = pd.read_csv(cache_file, parse_dates=['date'])
-            self.logger.info(f"Loaded {symbol} from cache ({len(df)} bars)")
+            self.logger.info(f"Loaded {symbol}_{timeframe} from cache ({len(df)} bars)")
             return df
 
         except Exception as e:
-            self.logger.error(f"Failed to load cache for {symbol}: {e}")
+            self.logger.error(f"Failed to load cache for {symbol}_{timeframe}: {e}")
             return None
         
     def fetch_all_symbols(self):

@@ -24,7 +24,7 @@ def main():
         return
     
     # Fetch data
-    aapl_data = fetcher.fetch_historical_data('AAPL')
+    aapl_data = fetcher.fetch_all_timeframes('AAPL')
 
     if aapl_data is None:
         fetcher.disconnect()

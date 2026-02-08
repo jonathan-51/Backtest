@@ -56,7 +56,7 @@ class DataFetcher:
         
         # Try cache first
         if self.data_config.cache_data:
-            cached_df = self.load_from_cache(symbol)
+            cached_df = self._load_from_cache(symbol)
             if cached_df is not None:
                 print(f"Loaded {symbol} from cache ({len(cached_df)} bars)")
                 return cached_df
@@ -111,7 +111,7 @@ class DataFetcher:
         
         # Save to cache
         if self.data_config.cache_data:
-            self.save_to_cache(symbol,df)
+            self._save_to_cache(symbol,df)
 
         # Return
         print(f"Fetched {len(df)} bars for {symbol}")
@@ -137,14 +137,55 @@ class DataFetcher:
             self.connected = False
             return False
 
-    
-    def _clean_data(self,data):
-        return data
+    def _clean_data(self,df: pd.DataFrame):
+        if df.empty:
+            return df
+        
+        # Remove duplicates
+        df = df.drop_duplicates(subset=['date'], keep='first')
+
+        # Sort by date
+        df = df.sort_values('date').reset_index(drop=True)
+
+        # Fix data types
+        df['date'] = pd.to_datetime(df['date'])
+        df['open'] = df['open'].astype(float)
+        df['high'] = df['high'].astype(float)
+        df['close'] = df['close'].astype(float)
+        df['low'] = df['low'].astype(float)
+        df['volume'] = df['volume'].astype(int)
+
+        # Check for missing values
+        if df.isnull().any().any():
+            print(f"Warning: Found {df.isnull().sum().sum()} missing values")
+            df = df.fillna(method='ffill')
+            df = df.fillna(method='bfill')
+
+        # Check for negative prices
+        if (df[['open','high','close','low']] < 0).any().any():
+            print("Warning: Found negative values")
+        
+        # Zero volume
+        if (df['volume'] == 0).any():
+            print(f"Warning: Found {(df['volume'] == 0).sum()} bars with zero volume")
+
+        # Check for High < Low
+        if (df['high'] < df['low']).any():
+            print('Warning: Found High < Low')
+            df[['high','low']] = df[['low','high']]
+
+        # Check for close outside high-low range
+        invalid = (df['close'] > df['high']) | (df['close'] < df['low'])
+        if invalid.any():
+            print(f"Warning: Found {invalid.sum()} bars with close outside high-low range")
+
+        print(f"Cleaned Data: {len(df)} bars")
+        return df
     def _validation_data(self,data):
         return True
-    def save_to_cache(self,a,b):
+    def _save_to_cache(self,a,b):
         pass
-    def load_from_cache(self,a):
+    def _load_from_cache(self,a):
         return None
     def fetch_all_symbols(self):
         pass

@@ -59,32 +59,34 @@ class DataFetcher:
                 self.logger.info(f"Connected to IB at {self.config.tws_host}:{self.config.tws_port}")
                 return True
             else:
-                self.logger.error("Connection failed")
+                self.logger.error("Failed to connect to IBKR, will only return cached data")
                 self.connected = False
                 return False
         
         # Handle errors
         except Exception as e:
-            self.logger.error(f"Failed to connect to IB: {e}")
+            self.logger.error(f"Failed to connect to IBKR, will only return cached data: {e}")
             self.connected = False
             return False
     
     def fetch_historical_data(self,symbol:str, timeframe:str) -> pd.DataFrame | None:
         """Fetch, clean, and validate historical bars for a symbol and timeframe."""
         
-        # Check connection
-        if not self.connected:
-            self.logger.error("Not connected to IB. Call connect() first")
-            return None
-        if not symbol or not isinstance(symbol,str):
-            self.logger.error(f"Symbol must be non-empty string, got: {symbol}")
-            return None
-        
         # Try cache first
         if self.data_config.cache_data:
             cached_df = self._load_from_cache(symbol,timeframe)
             if cached_df is not None:
                 return cached_df
+
+        # Check connection
+        if not self.connected:
+            self.logger.error("Not connected to IB. Call connect() first")
+            return None
+        
+        if not symbol or not isinstance(symbol,str):
+            self.logger.error(f"Symbol must be non-empty string, got: {symbol}")
+            return None
+        
         self.logger.info(f"Fetching {symbol}_{timeframe} from IB...")
 
         # Create Contract
@@ -193,17 +195,56 @@ class DataFetcher:
         results = {}
         timeframes = self.data_config.timeframes
 
+        connection_was_made = self._is_connection_required(timeframes,symbol)
+
+        # Fetching historical data for each timeframe
         for i, timeframe in enumerate(timeframes):
-            self.logger.info(f"[{i+1}/{len(timeframes)}] Fetching {symbol} {timeframe}...")
+            self.logger.info(f"[{i+1}/{len(timeframes)}] Processing {symbol} {timeframe}...")
+
+            was_cached = self._cache_exists(symbol,timeframe)
 
             df = self.fetch_historical_data(symbol,timeframe)
 
             if df is not None:
                 results[timeframe] = df
-            if i < len(timeframes) - 1:
+            if i < len(timeframes) - 1 and not was_cached and connection_was_made and self.connected:
                 time.sleep(self.config.request_pause)
 
+        # Disconnect only if needed
+        if connection_was_made and self.connected:
+            self.disconnect()
+
         return results
+
+    def _cache_exists(self,symbol:str,timeframe:str) -> bool:
+        """Check if cache file exists."""
+        cache_file = self.cache_dir / f"{symbol}_{timeframe}.csv"
+        return cache_file.exists()
+
+    def _is_connection_required(self,timeframes:list,symbol:str) -> bool:
+        """Check if IB connection is needed an connect if required"""
+
+        needs_api_connection = False
+
+        # Check if any timeframes need fetching (not in cache)
+        if self.data_config.cache_data:
+            for timeframe in timeframes:
+                if not self._cache_exists(symbol,timeframe):
+                    needs_api_connection = True
+                    self.logger.info(f"Cache missing for {symbol}_{timeframe},will need connection")
+        else:
+            # Caching disabled, always need connection
+            needs_api_connection = True
+
+        # Connect only if needed
+        if needs_api_connection:
+            if self.connect():
+                return True
+            else:
+                return False
+        else:
+            self.logger.info(f"All timeframes for {symbol} found in cache, skipping IBKR connection")
+            return False
 
     def disconnect(self) -> bool:
         """Close the IB TWS connection."""
@@ -249,27 +290,27 @@ class DataFetcher:
 
         # Check for missing values
         if df.isnull().any().any():
-            self.logger.warning(f"Warning: Found {df.isnull().sum().sum()} missing values")
+            self.logger.warning(f"Found {df.isnull().sum().sum()} missing values")
             df = df.fillna(method='ffill')
             df = df.fillna(method='bfill')
 
         # Check for negative prices
         if (df[['open','high','close','low']] < 0).any().any():
-            self.logger.warning("Warning: Found negative values")
+            self.logger.warning("Found negative values")
         
         # Zero volume
         if (df['volume'] == 0).any():
-            self.logger.warning(f"Warning: Found {(df['volume'] == 0).sum()} bars with zero volume")
+            self.logger.warning(f"Found {(df['volume'] == 0).sum()} bars with zero volume")
 
         # Check for High < Low
         if (df['high'] < df['low']).any():
-            self.logger.warning('Warning: Found High < Low')
+            self.logger.warning('Found High < Low')
             df[['high','low']] = df[['low','high']]
 
         # Check for close outside high-low range
         invalid = (df['close'] > df['high']) | (df['close'] < df['low'])
         if invalid.any():
-            self.logger.warning(f"Warning: Found {invalid.sum()} bars with close outside high-low range")
+            self.logger.warning(f"Found {invalid.sum()} bars with close outside high-low range")
 
         self.logger.info(f"Cleaned Data: {len(df)} bars")
         return df

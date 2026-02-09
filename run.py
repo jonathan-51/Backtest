@@ -23,23 +23,17 @@ def main():
     fetcher = DataFetcher(data_fetcher_config,data_config)
 
     # Create backtest engine
-    backtest = BacktestEngine(BacktestConfig,MACrossoverStrategy)
+    backtest = BacktestEngine(BacktestConfig,MACrossoverStrategy())
 
-    # Connect
-    if not fetcher.connect():
-        return
     
     # Fetch data
     aapl_data = fetcher.fetch_all_timeframes('AAPL')
 
     if aapl_data is None:
-        fetcher.disconnect()
         return    
-    
-    # Disconnect
-    fetcher.disconnect()
 
-    backtest.run(aapl_data['1d'])
+    results = backtest.run(aapl_data)
 
+    print(results)
 if __name__ == "__main__":
     main()

@@ -2,7 +2,8 @@ import pandas as pd
 from typing import Dict
 
 class MACrossoverStrategy:
-
+    """Simple Moving Average Crossover Strategy (Stub for Testing)"""
+    
     def __init__(self,fast_period: int = 5,slow_period: int =20):
         self.fast_period = fast_period
         self.slow_period = slow_period
@@ -48,6 +49,6 @@ class MACrossoverStrategy:
                 df.loc[df.index[i],'signal'] = 'hold_long'
             else:
                 df.loc[df.index[i],'signal'] = 'hold_cash'
-                
+
         # Return only date, signal and close columns
         return df[['date','signal','close']].copy()

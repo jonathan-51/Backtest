@@ -1,6 +1,8 @@
-from config import DataConfig, DataFetcherConfig
+from config import DataConfig, DataFetcherConfig, BacktestConfig
 import logging
 from data_fetcher import DataFetcher
+from backtest import BacktestEngine
+from strategies.test_ma_crossover import MACrossoverStrategy
 
 # Configure Logging
 logging.basicConfig(
@@ -15,9 +17,13 @@ def main():
     # Initialize configs
     data_config = DataConfig()
     data_fetcher_config = DataFetcherConfig()
+    
 
     # Create fetcher
     fetcher = DataFetcher(data_fetcher_config,data_config)
+
+    # Create backtest engine
+    backtest = BacktestEngine(BacktestConfig,MACrossoverStrategy)
 
     # Connect
     if not fetcher.connect():
@@ -32,6 +38,8 @@ def main():
     
     # Disconnect
     fetcher.disconnect()
+
+    backtest.run(aapl_data['1d'])
 
 if __name__ == "__main__":
     main()

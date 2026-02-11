@@ -4,6 +4,7 @@ from data_fetcher import DataFetcher
 from backtest import BacktestEngine
 from strategies.test_ma_crossover import MACrossoverStrategy
 from metrics import PerformanceMetrics
+from visualizer import BacktestVisualizer
 import numpy as np
 
 # Configure Logging
@@ -40,7 +41,9 @@ def main():
 
     metrics = get_metrics.generate_metrics()
     
+    plotter = BacktestVisualizer(results,metrics)
 
+    plotter.generate_report()
     summary = results['summary']
     for key, value in summary.items():
         if isinstance(value, np.number):

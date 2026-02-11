@@ -2,10 +2,11 @@ import pandas as pd
 import logging
 from typing import Dict,List
 from config import BacktestConfig
+from strategies.base import Strategy
 
 class BacktestEngine:
     """Simulates trading strategy execution against historical data."""
-    def __init__(self,config:BacktestConfig,strategy):
+    def __init__(self,config:BacktestConfig,strategy:Strategy):
         self.config = config
         self.strategy = strategy
         self.logger = logging.getLogger(__name__)

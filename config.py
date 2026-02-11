@@ -52,3 +52,9 @@ class DataFetcherConfig:
     client_id: int = 1
     request_pause: int = 11
 
+@dataclass
+class MetricsConfig:
+    risk_free_rate: float = 0.02
+    VaR_confidence: float = 0.95
+    trading_days: float = 252
+    calender_days: float = 365

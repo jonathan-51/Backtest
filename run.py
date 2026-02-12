@@ -1,15 +1,16 @@
-from config import DataConfig, DataFetcherConfig, BacktestConfig, MetricsConfig, ATRChannelBreakoutConfig
+from config import DataConfig, DataFetcherConfig, BacktestConfig, MetricsConfig, ATRChannelBreakoutConfig,RSIPullbackUptrendConfig
 import logging
 from data_fetcher import DataFetcher
 from backtest import BacktestEngine
-from strategies.test_ma_crossover import MACrossoverStrategy
-from strategies.atr_channel_breakout import ATRChannelBreakout
 from metrics import PerformanceMetrics
 from visualizer import BacktestVisualizer
 import numpy as np
 import csv
 import os
 from datetime import datetime
+from strategies.test_ma_crossover import MACrossoverStrategy
+from strategies.atr_channel_breakout import ATRChannelBreakout
+from strategies.rsi_pullback_uptrend import RSIPullbackUptrend
 
 # Configure Logging
 logging.basicConfig(
@@ -18,7 +19,7 @@ logging.basicConfig(
 
 logging.getLogger("ib_insync").setLevel(level=logging.WARNING)
 
-def main():
+def main(Strategy,StrategyConfig):
     """Test the data fetching pipeline end-to-end"""
 
     # Initialize configs
@@ -30,7 +31,7 @@ def main():
     fetcher = DataFetcher(data_fetcher_config,data_config)
 
     # Create backtest engine
-    backtest = BacktestEngine(BacktestConfig,ATRChannelBreakout())
+    backtest = BacktestEngine(BacktestConfig,Strategy())
     
     # Fetch data
     aapl_data = fetcher.fetch_all_timeframes('AAPL')
@@ -57,11 +58,11 @@ def main():
         print(f"{key}: {value}")
 
     log_experiment(
-        strategy_name='ATRChannelBreakout',
+        strategy_name=Strategy.__name__,
         symbol='AAPL',
         summary=results['summary'],
         metrics=metrics,
-        strategy_config=ATRChannelBreakoutConfig()
+        strategy_config=StrategyConfig()
     )
 
     plotter = BacktestVisualizer(results,metrics)
@@ -90,4 +91,4 @@ def log_experiment(strategy_name,symbol,summary,metrics,strategy_config):
         writer.writerow(row)
 
 if __name__ == "__main__":
-    main()
+    main(RSIPullbackUptrend,RSIPullbackUptrendConfig)

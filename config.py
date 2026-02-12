@@ -66,3 +66,20 @@ class ATRChannelBreakoutConfig:
     envelope_mult: float = 1.5
     stop_mult: int = 2
     trail_mult: int = 3
+
+@dataclass
+class RSIPullbackUptrendConfig:
+    """Configuration for Connors-style RSI pullback strategy."""
+    entry_sma_length: int = 200
+    rsi_length: int = 2
+    rsi_entry_threshold: int = 25
+    rsi_exit_threshold: int = 70
+    exit_sma_length: int = 5
+    atr_length: int = 15
+    stop_mult: float = 2
+
+    def __post_init__(self):
+        if not (0 < self.rsi_entry_threshold < self.rsi_exit_threshold < 100):
+            raise ValueError("RSI thresholds must be 0 < entry < exit < 100")
+        if self.stop_mult <= 0:
+            raise ValueError("stop_mult must be positive")

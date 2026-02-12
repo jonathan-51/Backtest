@@ -11,9 +11,7 @@ venv/
 *.pyc
 *.pyo
 *.pyw
-.project_context.txt
-.future_improvements.txt
-metrics_definitions.txt
+notes/
 logs/
 
 # IDE files

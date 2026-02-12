@@ -1,5 +1,5 @@
 import pandas as pd
-from typing import Dict
+from typing import Dict,Tuple
 from indicators import Indicators
 from config import ATRChannelBreakoutConfig
 from order import Order
@@ -20,7 +20,7 @@ class ATRChannelBreakout:
         self.trail_mult = trail_mult
         self.indicator = Indicators()
 
-    def generate_signals(self,data: Dict[str, pd.DataFrame]) -> pd.DataFrame:
+    def generate_signals(self,data: Dict[str, pd.DataFrame]) -> Tuple[pd.DataFrame,dict]:
         """Generate buy/sell signals based on ATR Channel Breakout"""
 
         df = data['1d'].copy()

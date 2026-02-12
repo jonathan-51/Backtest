@@ -1,4 +1,4 @@
-from config import DataConfig, DataFetcherConfig, BacktestConfig, MetricsConfig
+from config import DataConfig, DataFetcherConfig, BacktestConfig, MetricsConfig, ATRChannelBreakoutConfig
 import logging
 from data_fetcher import DataFetcher
 from backtest import BacktestEngine
@@ -7,6 +7,9 @@ from strategies.atr_channel_breakout import ATRChannelBreakout
 from metrics import PerformanceMetrics
 from visualizer import BacktestVisualizer
 import numpy as np
+import csv
+import os
+from datetime import datetime
 
 # Configure Logging
 logging.basicConfig(
@@ -53,9 +56,38 @@ def main():
             value = float(value)
         print(f"{key}: {value}")
 
+    log_experiment(
+        strategy_name='ATRChannelBreakout',
+        symbol='AAPL',
+        summary=results['summary'],
+        metrics=metrics,
+        strategy_config=ATRChannelBreakoutConfig()
+    )
+
     plotter = BacktestVisualizer(results,metrics)
 
     plotter.generate_report()
+
+def log_experiment(strategy_name,symbol,summary,metrics,strategy_config):
+    """Append backtest results to CSV log."""
+
+    row = {
+        'date': datetime.now().strftime('%Y-%m-%d %H:%M'),
+        'strategy':strategy_name,
+        'symbol': symbol,
+        **{f'param_{k}':v for k,v in strategy_config.__dict__.items()},
+        **summary,
+        **metrics,
+    }
+
+    os.makedirs('logs', exist_ok=True)
+    file_exists = os.path.exists(f'logs/{strategy_name}_log.csv')
+
+    with open(f'logs/{strategy_name}_log.csv','a',newline='') as f:
+        writer = csv.DictWriter(f,fieldnames=row.keys())
+        if not file_exists:
+            writer.writeheader()
+        writer.writerow(row)
 
 if __name__ == "__main__":
     main()

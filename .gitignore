@@ -14,7 +14,7 @@ venv/
 .project_context.txt
 .future_improvements.txt
 metrics_definitions.txt
-experiment_log.txt
+logs/
 
 # IDE files
 .vscode/

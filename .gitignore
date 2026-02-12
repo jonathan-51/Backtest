@@ -13,6 +13,8 @@ venv/
 *.pyw
 .project_context.txt
 .future_improvements.txt
+metrics_definitions.txt
+experiment_log.txt
 
 # IDE files
 .vscode/

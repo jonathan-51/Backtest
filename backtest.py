@@ -21,19 +21,52 @@ class BacktestEngine:
         """Execute strategy signals against historical data and return results."""
 
         # Generate signals
-        signals = self.strategy.generate_signals(data)
+        signals, orders = self.strategy.generate_signals(data)
+
+        active_order = None
+        highest_close = 0.0
 
         # Loop through each bar
-        for _, row in signals.iterrows():
+        for idx, row in signals.iterrows():
             date = row['date']
             price = row['close']
             signal = row['signal']
+            low = row.get('low',price)
+
+            # Check active order stops
+            if self.position is not None and active_order is not None:
+                highest_close = max(highest_close,price)
+
+                stops = []
+                if active_order.stop_loss is not None:
+                    stops.append(active_order.stop_loss)
+                if active_order.trail_offset is not None:
+                    trail_stop = highest_close - active_order.trail_offset
+                    stops.append(trail_stop)
+                    if active_order.stop_loss is None or trail_stop > active_order.stop_loss:
+                        active_order.stop_loss = trail_stop
+
+
+                if stops and low <= max(stops):
+                    self._execute_sell(date,max(stops))
+                    active_order = None
+                    self.equity_curve.append({'date':date,'equity':self.cash})
+                    continue
+
+                if active_order.take_profit is not None and price >= active_order.take_profit:
+                    self._execute_sell(date,active_order.take_profit)
+                    active_order = None
+                    self.equity_curve.append({'date':date,'equity':self.cash})
+                    continue
 
             # Execute signals
             if signal == 'buy' and self.position is None:
                 self._execute_buy(date,price)
+                active_order = orders.get(idx)
+                highest_close = price
             elif signal == 'sell' and self.position is not None:
                 self._execute_sell(date,price)
+                active_order = None
 
             # Record equity
             equity = self.cash

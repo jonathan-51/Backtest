@@ -2,6 +2,7 @@ import pandas as pd
 from typing import Dict
 from indicators import Indicators
 from config import ATRChannelBreakoutConfig
+from order import Order
 
 class ATRChannelBreakout:
 
@@ -34,7 +35,7 @@ class ATRChannelBreakout:
         df['prev_close'] = df['close'].shift(1)
 
         df['signal'] = 'hold_cash'
-        in_position = False
+        orders = {}
 
         for i in range(1,len(df)):
             if pd.isna(df['upper'].iloc[i]):
@@ -43,18 +44,15 @@ class ATRChannelBreakout:
             prev_close = df['prev_close'].iloc[i]
             curr_close = df['close'].iloc[i]
             upper = df['upper'].iloc[i]
+            lower = df['lower'].iloc[i]
+            curr_atr = df['atr'].iloc[i]
 
             # Entry: close crosses above upper envelope
-            if not in_position and prev_close <= upper and curr_close > upper:
-                in_position = True
+            if prev_close <= upper and curr_close > upper:
                 df.loc[df.index[i],'signal'] = 'buy'
+                orders[df.index[i]] = Order(
+                    stop_loss = max(lower, curr_close - self.stop_mult * curr_atr),
+                    trail_offset=self.trail_mult * curr_atr,
+                )
 
-            elif in_position:
-                df.loc[df.index[i],'signal'] = 'hold_long'
-
-        # Stop columns for engine
-        df['initial_stop'] = df['lower']
-        df['stop_offset'] = self.stop_mult * df['atr']
-        df['trail_offset'] = self.trail_mult * df['atr']
-
-        return df[['date','signal','close','high','low','inital_stop','stop_offset','trail_offset']].copy()
+        return df[['date','signal','close','high','low']].copy(), orders

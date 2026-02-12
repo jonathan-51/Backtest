@@ -51,4 +51,4 @@ class MACrossoverStrategy:
                 df.loc[df.index[i],'signal'] = 'hold_cash'
 
         # Return only date, signal and close columns
-        return df[['date','signal','close']].copy()
+        return df[['date','signal','close']].copy(), {}

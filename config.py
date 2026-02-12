@@ -58,3 +58,11 @@ class MetricsConfig:
     VaR_confidence: float = 0.95
     trading_days: float = 252
     calender_days: float = 365
+
+@dataclass
+class ATRChannelBreakoutConfig:
+    sma_length: int = 20
+    atr_length: int = 20
+    envelope_mult: float = 1.5
+    stop_mult: int = 2
+    trail_mult: int = 3

@@ -34,12 +34,12 @@ def main(Strategy,StrategyConfig):
     backtest = BacktestEngine(BacktestConfig,Strategy())
     
     # Fetch data
-    aapl_data = fetcher.fetch_all_timeframes('AAPL')
+    data = fetcher.fetch_all_timeframes(data_config.symbol)
 
-    if aapl_data is None:
+    if data is None:
         return    
 
-    results = backtest.run(aapl_data)
+    results = backtest.run(data)
 
     # Create metrics engine
     get_metrics = PerformanceMetrics(results,metric_config)
@@ -59,23 +59,32 @@ def main(Strategy,StrategyConfig):
 
     log_experiment(
         strategy_name=Strategy.__name__,
-        symbol='AAPL',
+        symbol=data_config.symbol,
         summary=results['summary'],
         metrics=metrics,
-        strategy_config=StrategyConfig()
+        strategy_config=StrategyConfig(),
+        data=data['1d']
     )
 
     plotter = BacktestVisualizer(results,metrics)
 
     plotter.generate_report()
 
-def log_experiment(strategy_name,symbol,summary,metrics,strategy_config):
+def log_experiment(strategy_name,symbol,summary,metrics,strategy_config,data):
     """Append backtest results to CSV log."""
 
     row = {
         'date': datetime.now().strftime('%Y-%m-%d %H:%M'),
+        'lookback_period':DataConfig.lookback_period,
+        'start_date':data['date'].iloc[0],
+        'end_date':data['date'].iloc[-1],
+        'bars':len(data),
         'strategy':strategy_name,
         'symbol': symbol,
+        'initial_capital': BacktestConfig.initial_capital,
+        'commission_rate': BacktestConfig.commission_rate,
+        'slippage': BacktestConfig.slippage,
+        'position_size': BacktestConfig.position_size,
         **{f'param_{k}':v for k,v in strategy_config.__dict__.items()},
         **summary,
         **metrics,
@@ -91,4 +100,4 @@ def log_experiment(strategy_name,symbol,summary,metrics,strategy_config):
         writer.writerow(row)
 
 if __name__ == "__main__":
-    main(RSIPullbackUptrend,RSIPullbackUptrendConfig)
+    main(ATRChannelBreakout,ATRChannelBreakoutConfig)

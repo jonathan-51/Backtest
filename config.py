@@ -83,3 +83,14 @@ class RSIPullbackUptrendConfig:
             raise ValueError("RSI thresholds must be 0 < entry < exit < 100")
         if self.stop_mult <= 0:
             raise ValueError("stop_mult must be positive")
+        
+@dataclass
+class WalkForwardValidatorConfig:
+    """Configuration for walk-forward validation"""
+    warm_up_bars: int = 200
+    train_bars: int = 700
+    test_bars: int = 200
+    min_remaining_bars: int = 50
+    avg_degradation_threshold_pass: float = -0.25
+    avg_degradation_threshold_marginal: float = -0.50
+

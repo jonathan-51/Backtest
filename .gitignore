@@ -13,6 +13,7 @@ venv/
 *.pyw
 notes/
 logs/
+test.py
 
 # IDE files
 .vscode/

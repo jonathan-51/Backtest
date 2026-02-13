@@ -6,18 +6,12 @@ from order import Order
 
 class ATRChannelBreakout:
 
-    def __init__(self, 
-                 sma_length = ATRChannelBreakoutConfig.sma_length, 
-                 atr_length = ATRChannelBreakoutConfig.atr_length, 
-                 envelope_mult = ATRChannelBreakoutConfig.envelope_mult,
-                 stop_mult = ATRChannelBreakoutConfig.stop_mult,
-                 trail_mult = ATRChannelBreakoutConfig.trail_mult ):
-        
-        self.sma_length = sma_length
-        self.atr_length = atr_length
-        self.envelope_mult = envelope_mult
-        self.stop_mult = stop_mult
-        self.trail_mult = trail_mult
+    def __init__(self):
+        self.sma_length = ATRChannelBreakoutConfig.sma_length
+        self.atr_length = ATRChannelBreakoutConfig.atr_length
+        self.envelope_mult = ATRChannelBreakoutConfig.envelope_mult
+        self.stop_mult = ATRChannelBreakoutConfig.stop_mult
+        self.trail_mult = ATRChannelBreakoutConfig.trail_mult
         self.indicator = Indicators()
 
     def generate_signals(self,data: Dict[str, pd.DataFrame]) -> Tuple[pd.DataFrame,dict]:

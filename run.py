@@ -1,4 +1,4 @@
-from config import DataConfig, DataFetcherConfig, BacktestConfig, MetricsConfig, ATRChannelBreakoutConfig,RSIPullbackUptrendConfig
+from config import DataConfig, DataFetcherConfig, BacktestConfig, MetricsConfig, ATRChannelBreakoutConfig,RSIPullbackUptrendConfig, WalkForwardValidatorConfig
 import logging
 from data_fetcher import DataFetcher
 from backtest import BacktestEngine
@@ -11,6 +11,7 @@ from datetime import datetime
 from strategies.test_ma_crossover import MACrossoverStrategy
 from strategies.atr_channel_breakout import ATRChannelBreakout
 from strategies.rsi_pullback_uptrend import RSIPullbackUptrend
+from validation import WalkForwardValidator
 
 # Configure Logging
 logging.basicConfig(
@@ -38,12 +39,14 @@ def main(Strategy,StrategyConfig):
 
     if data is None:
         return    
-
+    
+    # Run backtest
     results = backtest.run(data)
 
     # Create metrics engine
     get_metrics = PerformanceMetrics(results,metric_config)
 
+    # Analyse results and compute metrics
     metrics = get_metrics.generate_metrics()
 
     summary = results['summary']
@@ -57,6 +60,7 @@ def main(Strategy,StrategyConfig):
             value = float(value)
         print(f"{key}: {value}")
 
+    # Log results and metrics in CSV file
     log_experiment(
         strategy_name=Strategy.__name__,
         symbol=data_config.symbol,
@@ -66,8 +70,10 @@ def main(Strategy,StrategyConfig):
         data=data['1d']
     )
 
+    # Create plotter object
     plotter = BacktestVisualizer(results,metrics)
 
+    # Plot metrics
     plotter.generate_report()
 
 def log_experiment(strategy_name,symbol,summary,metrics,strategy_config,data):
@@ -99,5 +105,36 @@ def log_experiment(strategy_name,symbol,summary,metrics,strategy_config,data):
             writer.writeheader()
         writer.writerow(row)
 
+def validate(Strategy):
+    """Run walk-forward validation on strategy"""
+    # Create data config and data fetcher config objects
+    data_config = DataConfig()
+    data_fetcher_config = DataFetcherConfig()
+
+    # Create data fetcher object
+    fetcher = DataFetcher(data_fetcher_config,data_config)
+
+    # Fetch data
+    data = fetcher.fetch_all_timeframes(data_config.symbol)
+
+    if data is None:
+        return
+    
+    # Create validator object
+    validator = WalkForwardValidator(Strategy(),data)
+
+    # Computing validation results
+    results = validator.run()
+
+    # Print per-window results
+    for r in results['windows']:
+        print(f"Window {r['window']}: train_sharpe={r['train_sharpe']:.4f}, "
+              f"test_sharpe={r['test_sharpe']:.4f}, degradation={r['degradation']:.2%}")
+
+    print(f"\nAvg Degradation: {results['avg_degradation']:.2%}")
+    print(f"Verdict: {results['verdict']}")
+
 if __name__ == "__main__":
-    main(ATRChannelBreakout,ATRChannelBreakoutConfig)
+    #main(ATRChannelBreakout,ATRChannelBreakoutConfig)
+    validate(ATRChannelBreakout)
+    validate(RSIPullbackUptrend)

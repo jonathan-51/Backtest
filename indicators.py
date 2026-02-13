@@ -1,7 +1,7 @@
 import pandas as pd
 
 class Indicators:
-
+    """Technical indicator library for strategy signal generation."""
     def __init__(self):
         pass
 

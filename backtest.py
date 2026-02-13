@@ -1,6 +1,6 @@
 import pandas as pd
 import logging
-from typing import Dict,List
+from typing import Dict
 from config import BacktestConfig
 from strategies.base import Strategy
 
@@ -77,9 +77,19 @@ class BacktestEngine:
         # Force close position at end of data
         if self.position is not None:
             last = signals.iloc[-1]
+            self.logger.info(f"Force closing position at end of data on {last['date']}")
             self._execute_sell(last['date'],last['close'])
         
-        return self._build_results()
+        # Computing basic results from backtest
+        results = self._build_results()
+
+        # Reset initial values
+        self.cash = self.config.initial_capital
+        self.position = None
+        self.trade_log = []
+        self.equity_curve = []
+
+        return results
 
     def _build_results(self) -> dict:
         """Package trade log"""
@@ -115,6 +125,7 @@ class BacktestEngine:
         # Calculate number of shares
         shares = self._calculate_shares(price)
         if shares <= 0:
+            self.logger.warning(f"Insufficient cash to buy at {price:.2f} on {date}")
             return
         
         fill_price = self._apply_slippage(price,'buy')
@@ -139,8 +150,8 @@ class BacktestEngine:
 
         # Calculate P&L
         entry_cost = self.position['shares'] * self.position['entry_price']
-        total_commision = self.position['commission_in'] + commission
-        pnl = proceeds - entry_cost - total_commision
+        total_commission = self.position['commission_in'] + commission
+        pnl = proceeds - entry_cost - total_commission
 
         # Append to trade log
         self.trade_log.append({
@@ -151,7 +162,7 @@ class BacktestEngine:
             'shares': self.position['shares'],
             'pnl':pnl,
             'return_pct':pnl / entry_cost,
-            'commission_paid': total_commision,
+            'commission_paid': total_commission,
         })
 
         self.position = None

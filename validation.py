@@ -3,6 +3,8 @@ from typing import List,Tuple
 from backtest import BacktestEngine
 from config import BacktestConfig,MetricsConfig,WalkForwardValidatorConfig
 from metrics import PerformanceMetrics
+import logging
+
 class WalkForwardValidator:
     """Walk-forward validation to test strategy edge on unseen data."""
     def __init__(self,strategy,data:dict):
@@ -12,10 +14,11 @@ class WalkForwardValidator:
         self.train_bars = self.walk_forward_validator_config.train_bars
         self.test_bars = self.walk_forward_validator_config.test_bars
         self.warm_up_bars = self.walk_forward_validator_config.warm_up_bars
+        self.logger = logging.getLogger(__name__)
 
     def create_windows(self) -> List[Tuple[pd.DataFrame,pd.DataFrame]]:
         """Split data into rolling train/test windows"""
-        df = self.data['1d']
+        df = self.data[WalkForwardValidatorConfig.timeframe]
 
         windows=[]
         start = 0
@@ -38,9 +41,14 @@ class WalkForwardValidator:
     
     def run(self) -> List[dict]:
         """Run walk-forward validation across all windows"""
+
         windows = self.create_windows()
+        self.logger.info(f"{self.strategy.__class__.__name__} -> Running walk-forward validation: {len(windows)} windows")
+
         results = []
         for i,(train_df,test_df) in enumerate(windows):
+            self.logger.info(f"Window {i+1}/{len(windows)}: train={len(train_df)} bars, test={len(test_df)} bars")
+
             # Fresh engine for train
             train_engine = BacktestEngine(BacktestConfig,self.strategy)
             train_results = train_engine.run({'1d':train_df})
@@ -73,6 +81,7 @@ class WalkForwardValidator:
                 'degradation':degradation
             })
 
+        self.logger.info(f"Window {i+1}: train_sharpe={train_sharpe:.4f}, test_sharpe={test_sharpe:.4f}, degradation={degradation:.2%}")
         return self.summarize(results)
     
     def summarize(self,results: list[dict]) -> dict:
@@ -89,6 +98,8 @@ class WalkForwardValidator:
             verdict = "MARGINAL"
         else:
             verdict = "FAIL"
+
+        self.logger.info(f"Walk-forward complete for {self.strategy.__class__.__name__}: avg_degradation={avg_degradation:.2%}, verdict={verdict}")
 
         return {
             'windows':results,

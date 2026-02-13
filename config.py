@@ -57,10 +57,11 @@ class MetricsConfig:
     risk_free_rate: float = 0.02
     VaR_confidence: float = 0.95
     trading_days: float = 252
-    calender_days: float = 365
+    calendar_days: float = 365
 
 @dataclass
 class ATRChannelBreakoutConfig:
+    timeframe: str = '1d'
     sma_length: int = 20
     atr_length: int = 20
     envelope_mult: float = 1.5
@@ -70,6 +71,7 @@ class ATRChannelBreakoutConfig:
 @dataclass
 class RSIPullbackUptrendConfig:
     """Configuration for Connors-style RSI pullback strategy."""
+    timeframe: str = '1d'
     entry_sma_length: int = 200
     rsi_length: int = 2
     rsi_entry_threshold: int = 25
@@ -87,6 +89,7 @@ class RSIPullbackUptrendConfig:
 @dataclass
 class WalkForwardValidatorConfig:
     """Configuration for walk-forward validation"""
+    timeframe: str = '1d'
     warm_up_bars: int = 200
     train_bars: int = 700
     test_bars: int = 200

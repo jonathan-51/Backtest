@@ -19,9 +19,10 @@ logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 
 logging.getLogger("ib_insync").setLevel(level=logging.WARNING)
+logger = logging.getLogger(__name__)
 
-def main(Strategy,StrategyConfig):
-    """Test the data fetching pipeline end-to-end"""
+def main(Strategy,StrategyConfig) -> None:
+    """Computes complete backtest results"""
 
     # Initialize configs
     data_config = DataConfig()
@@ -53,12 +54,12 @@ def main(Strategy,StrategyConfig):
     for key, value in summary.items():
         if isinstance(value, np.number):
             value = float(value)
-        print(f"{key}: {value}")
-    print(50 * '=')
+        logger.info(f"{key}: {value}")
+    logger.info(50 * '=')
     for key, value in metrics.items():
         if isinstance(value, np.number):
             value = float(value)
-        print(f"{key}: {value}")
+        logger.info(f"{key}: {value}")
 
     # Log results and metrics in CSV file
     log_experiment(
@@ -67,7 +68,7 @@ def main(Strategy,StrategyConfig):
         summary=results['summary'],
         metrics=metrics,
         strategy_config=StrategyConfig(),
-        data=data['1d']
+        data=data[StrategyConfig().timeframe]
     )
 
     # Create plotter object
@@ -76,7 +77,7 @@ def main(Strategy,StrategyConfig):
     # Plot metrics
     plotter.generate_report()
 
-def log_experiment(strategy_name,symbol,summary,metrics,strategy_config,data):
+def log_experiment(strategy_name,symbol,summary,metrics,strategy_config,data) -> None:
     """Append backtest results to CSV log."""
 
     row = {
@@ -105,7 +106,7 @@ def log_experiment(strategy_name,symbol,summary,metrics,strategy_config,data):
             writer.writeheader()
         writer.writerow(row)
 
-def validate(Strategy):
+def validate(Strategy) -> None:
     """Run walk-forward validation on strategy"""
     # Create data config and data fetcher config objects
     data_config = DataConfig()
@@ -126,13 +127,13 @@ def validate(Strategy):
     # Computing validation results
     results = validator.run()
 
-    # Print per-window results
+    # Log per-window results
     for r in results['windows']:
-        print(f"Window {r['window']}: train_sharpe={r['train_sharpe']:.4f}, "
+        logger.info(f"Window {r['window']}: train_sharpe={r['train_sharpe']:.4f}, "
               f"test_sharpe={r['test_sharpe']:.4f}, degradation={r['degradation']:.2%}")
 
-    print(f"\nAvg Degradation: {results['avg_degradation']:.2%}")
-    print(f"Verdict: {results['verdict']}")
+    logger.info(f"Avg Degradation: {results['avg_degradation']:.2%}")
+    logger.info(f"Verdict: {results['verdict']}")
 
 if __name__ == "__main__":
     #main(ATRChannelBreakout,ATRChannelBreakoutConfig)

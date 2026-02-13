@@ -3,21 +3,29 @@ from typing import Dict,Tuple
 from indicators import Indicators
 from config import ATRChannelBreakoutConfig
 from order import Order
+from strategies.base import Strategy
 
-class ATRChannelBreakout:
-
-    def __init__(self):
-        self.sma_length = ATRChannelBreakoutConfig.sma_length
-        self.atr_length = ATRChannelBreakoutConfig.atr_length
-        self.envelope_mult = ATRChannelBreakoutConfig.envelope_mult
-        self.stop_mult = ATRChannelBreakoutConfig.stop_mult
-        self.trail_mult = ATRChannelBreakoutConfig.trail_mult
+class ATRChannelBreakout(Strategy):
+    """Trend-following strategy that enters long when price breaks above an ATR envelope around the SMA."""
+    def __init__(self, 
+                 sma_length = ATRChannelBreakoutConfig.sma_length, 
+                 atr_length = ATRChannelBreakoutConfig.atr_length, 
+                 envelope_mult = ATRChannelBreakoutConfig.envelope_mult,
+                 stop_mult = ATRChannelBreakoutConfig.stop_mult,
+                 trail_mult = ATRChannelBreakoutConfig.trail_mult,
+                 timeframe = ATRChannelBreakoutConfig.timeframe):
+        self.sma_length = sma_length
+        self.atr_length = atr_length
+        self.envelope_mult = envelope_mult
+        self.stop_mult = stop_mult
+        self.trail_mult = trail_mult
         self.indicator = Indicators()
+        self.timeframe = timeframe
 
     def generate_signals(self,data: Dict[str, pd.DataFrame]) -> Tuple[pd.DataFrame,dict]:
         """Generate buy/sell signals based on ATR Channel Breakout"""
 
-        df = data['1d'].copy()
+        df = data[self.timeframe].copy()
 
         # Compute Channel
         df['sma'] = self.indicator.sma(df['close'],self.sma_length)

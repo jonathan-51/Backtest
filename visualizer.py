@@ -3,6 +3,7 @@ import logging
 from typing import Dict
 
 class BacktestVisualizer:
+    """Generates visual reports from backtest results and performance metrics."""
 
     def __init__(self,results:Dict[str,any],metrics:Dict[str,float]):
         self.results = results

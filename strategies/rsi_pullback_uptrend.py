@@ -3,8 +3,9 @@ from typing import Dict,Tuple
 from config import RSIPullbackUptrendConfig
 from indicators import Indicators
 from order import Order
+from strategies.base import Strategy
 
-class RSIPullbackUptrend:
+class RSIPullbackUptrend(Strategy):
     """Connors-style RSI(2) pullback in uptrend strategy."""
     def __init__(self,
                  entry_sma_length = RSIPullbackUptrendConfig.entry_sma_length,
@@ -13,7 +14,8 @@ class RSIPullbackUptrend:
                  rsi_length = RSIPullbackUptrendConfig.rsi_length,
                  rsi_entry_threshold = RSIPullbackUptrendConfig.rsi_entry_threshold,
                  rsi_exit_threshold = RSIPullbackUptrendConfig.rsi_exit_threshold,
-                 stop_mult = RSIPullbackUptrendConfig.stop_mult):
+                 stop_mult = RSIPullbackUptrendConfig.stop_mult,
+                 timeframe = RSIPullbackUptrendConfig.timeframe):
         self.entry_sma_length = entry_sma_length
         self.exit_sma_length = exit_sma_length
         self.atr_length = atr_length
@@ -22,11 +24,12 @@ class RSIPullbackUptrend:
         self.rsi_exit_threshold = rsi_exit_threshold
         self.stop_mult = stop_mult
         self.indicator = Indicators()
+        self.timeframe = timeframe
 
     def generate_signals(self,data: Dict[str,pd.DataFrame]) -> Tuple[pd.DataFrame,dict]:
         """Generate buy/sell signals based on RSI uptrend pullbacks"""
 
-        df = data['1d'].copy()
+        df = data[self.timeframe].copy()
 
         # Compute Indicators
         df['entry_sma'] = self.indicator.sma(df['close'],self.entry_sma_length)

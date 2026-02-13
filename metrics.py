@@ -4,7 +4,7 @@ import numpy as np
 from config import MetricsConfig
 
 class PerformanceMetrics:
-    """Computes institutional-grade performance and risk metrics from backtest results."""
+    """Computes performance and risk metrics from backtest results."""
 
     def __init__(self,results,metric_config:MetricsConfig):
         self.results = results
@@ -37,13 +37,13 @@ class PerformanceMetrics:
 
         initial_equity = equity_curve['equity'].iloc[0]
         final_equity = equity_curve['equity'].iloc[-1]
-        years = ((equity_curve['date'].iloc[-1] - equity_curve['date'].iloc[0]).days)/MetricsConfig.calender_days
+        years = ((equity_curve['date'].iloc[-1] - equity_curve['date'].iloc[0]).days)/self.metric_config.calendar_days
 
         # Calculate daily returs from equity curve
         daily_returns = equity_curve['equity'].pct_change().dropna()
 
         # Annualize volatility
-        annual_volatility = daily_returns.std() * np.sqrt(MetricsConfig.trading_days)
+        annual_volatility = daily_returns.std() * np.sqrt(self.metric_config.trading_days)
 
         if annual_volatility == 0:
             self.logger.warning("Zero volatility — cannot calculate Sharpe ratio")
@@ -61,7 +61,7 @@ class PerformanceMetrics:
 
         initial_equity = equity_curve['equity'].iloc[0]
         final_equity = equity_curve['equity'].iloc[-1]
-        years = ((equity_curve['date'].iloc[-1] - equity_curve['date'].iloc[0]).days)/MetricsConfig.calender_days
+        years = ((equity_curve['date'].iloc[-1] - equity_curve['date'].iloc[0]).days)/self.metric_config.calendar_days
 
         # Calculate daily returs from equity curve
         daily_returns = equity_curve['equity'].pct_change().dropna()
@@ -70,7 +70,7 @@ class PerformanceMetrics:
         downside_returns = daily_returns[daily_returns < 0]
 
         # Annualize volatility
-        annual_downside_volatility = downside_returns.std() * np.sqrt(MetricsConfig.trading_days)
+        annual_downside_volatility = downside_returns.std() * np.sqrt(self.metric_config.trading_days)
 
         if annual_downside_volatility == 0:
             self.logger.warning("Zero volatility — cannot calculate Sortino ratio")
@@ -92,7 +92,7 @@ class PerformanceMetrics:
 
         initial_equity = equity_curve['equity'].iloc[0]
         final_equity = equity_curve['equity'].iloc[-1]
-        years = ((equity_curve['date'].iloc[-1] - equity_curve['date'].iloc[0]).days)/MetricsConfig.calender_days
+        years = ((equity_curve['date'].iloc[-1] - equity_curve['date'].iloc[0]).days)/self.metric_config.calendar_days
 
         # Annualized return (CAGR)
         annual_return = (final_equity / initial_equity) ** (1/years) - 1
@@ -139,9 +139,6 @@ class PerformanceMetrics:
         expectancy = (win_rate * average_win) - (loss_rate * average_loss)
 
         return expectancy
-    
-    def information_ratio(self):
-        pass
 
     def VaR(self,equity_curve:pd.DataFrame) -> float:
         """Value at Risk — worst expected daily loss at a given confidence level."""
@@ -199,13 +196,16 @@ class PerformanceMetrics:
 
         trade_log = self.results['trade_log']
 
-        win_average = np.mean([trade['pnl'] for trade in trade_log if trade['pnl'] > 0])
-        loss_average = abs(np.mean([trade['pnl'] for trade in trade_log if trade['pnl'] < 0]))
+        winners = [trade['pnl'] for trade in trade_log if trade['pnl'] > 0]
+        losers = [trade['pnl'] for trade in trade_log if trade['pnl'] < 0]
 
-        if loss_average == 0:
+        if not losers:
             self.logger.warning("No losing trades — win/loss ratio is infinite")
             return float('inf')
+        if not winners:
+            self.logger.warning("No winning trades - win/loss ratio is zero")
+            return 0.0
         
-        win_ratio = win_average/loss_average
+        win_ratio = np.mean(winners)/abs(np.mean(losers))
 
         return win_ratio

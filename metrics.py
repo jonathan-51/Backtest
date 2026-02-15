@@ -72,7 +72,7 @@ class PerformanceMetrics:
         # Annualize volatility
         annual_downside_volatility = downside_returns.std() * np.sqrt(self.metric_config.trading_days)
 
-        if annual_downside_volatility == 0:
+        if annual_downside_volatility == 0 or downside_returns.empty:
             self.logger.warning("Zero volatility — cannot calculate Sortino ratio")
             return 0.0
 

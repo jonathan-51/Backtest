@@ -29,6 +29,7 @@ class DataConfig:
     ticker symbols, timeframe, storage path, and date range
     """
     symbol: str = 'AAPL'
+    symbols: List[str] = field(default_factory=lambda: ['AAPL', 'XOM', 'JPM'])
     timeframes: List[str] = field(default_factory=lambda: ['1d'])
     data_path: str = './data'
     cache_data:bool = True

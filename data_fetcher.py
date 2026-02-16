@@ -409,5 +409,15 @@ class DataFetcher:
             self.logger.error(f"Failed to load cache for {symbol}_{timeframe}: {e}")
             return None
         
-    def fetch_all_symbols(self):
-        pass
+    def fetch_all_symbols(self) -> Dict[str, Dict[str, pd.DataFrame]]:
+        """Fetch all timeframes for all configured symbols."""
+        
+        all_data = {}
+        for symbol in self.data_config.symbols:
+            self.logger.info(f"Fetching data for {symbol}")
+            data = self.fetch_all_timeframes(symbol)
+            if data:
+                all_data[symbol] = data
+            else:
+                self.logger.warning(f"No data fetched for {symbol}, skipping")
+        return all_data

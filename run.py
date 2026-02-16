@@ -33,16 +33,16 @@ def main(Strategy,StrategyConfig) -> None:
     fetcher = DataFetcher(data_fetcher_config,data_config)
 
     # Create backtest engine
-    backtest = BacktestEngine(BacktestConfig,Strategy())
-    
-    # Fetch data
-    data = fetcher.fetch_all_timeframes(data_config.symbol)
+    backtest = BacktestEngine(BacktestConfig(),Strategy())
 
-    if data is None:
-        return    
-    
+    # Fetch data for all symbols
+    all_data = fetcher.fetch_all_symbols()
+
+    if not all_data:
+        return
+
     # Run backtest
-    results = backtest.run(data)
+    results = backtest.run(all_data)
 
     # Create metrics engine
     get_metrics = PerformanceMetrics(results,metric_config)
@@ -64,11 +64,11 @@ def main(Strategy,StrategyConfig) -> None:
     # Log results and metrics in CSV file
     log_experiment(
         strategy_name=Strategy.__name__,
-        symbol=data_config.symbol,
+        symbol=','.join(data_config.symbols),
         summary=results['summary'],
         metrics=metrics,
         strategy_config=StrategyConfig(),
-        data=data[StrategyConfig().timeframe]
+        data=list(all_data.values())[0][StrategyConfig().timeframe]
     )
 
     # Create plotter object
@@ -136,6 +136,6 @@ def validate(Strategy) -> None:
     logger.info(f"Verdict: {results['verdict']}")
 
 if __name__ == "__main__":
-    #main(ATRChannelBreakout,ATRChannelBreakoutConfig)
-    validate(ATRChannelBreakout)
-    validate(RSIPullbackUptrend)
+    main(RSIPullbackUptrend,RSIPullbackUptrendConfig)
+    #validate(ATRChannelBreakout)
+    #validate(RSIPullbackUptrend)

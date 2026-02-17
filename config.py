@@ -1,6 +1,6 @@
 from dataclasses import dataclass,field
 from datetime import datetime, timedelta
-from typing import List
+from typing import List, Optional
 import os
 
 @dataclass
@@ -125,3 +125,17 @@ class RSIPullbackOptimizerConfig:
     exit_sma_length: list = field(default_factory=lambda: [5, 10])
     atr_length: list = field(default_factory=lambda: [10, 15, 20])
     stop_mult: list = field(default_factory=lambda: [1.5, 2, 3])
+
+@dataclass
+class MonteCarloConfig:
+    """Configuration for Monte Carlo trade resampling simulation."""
+    n_simulations: int = 1000
+    percentiles: list = field(default_factory=lambda: [5, 25, 50, 75, 95])
+    ruin_threshold: float = 0.5
+    random_seed: Optional[int] = None
+
+    def __post_init__(self):
+        if self.n_simulations <= 0:
+            raise ValueError("n_simulations must be positive")
+        if not (0 < self.ruin_threshold < 1):
+            raise ValueError("ruin_threshold must be between 0 and 1")

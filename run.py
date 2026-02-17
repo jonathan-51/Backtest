@@ -1,10 +1,11 @@
 from dataclasses import asdict
-from config import DataConfig, DataFetcherConfig, BacktestConfig, MetricsConfig, ATRChannelBreakoutConfig,RSIPullbackUptrendConfig, WalkForwardValidatorConfig,ATRChannelBreakoutOptimizerConfig,RSIPullbackOptimizerConfig
+from config import DataConfig, DataFetcherConfig, BacktestConfig, MetricsConfig, MonteCarloConfig, ATRChannelBreakoutConfig,RSIPullbackUptrendConfig, WalkForwardValidatorConfig,ATRChannelBreakoutOptimizerConfig,RSIPullbackOptimizerConfig
 import logging
 from data_fetcher import DataFetcher
 from backtest import BacktestEngine
 from metrics import PerformanceMetrics
 from visualizer import BacktestVisualizer
+from monte_carlo import MonteCarloSimulator
 import numpy as np
 import csv
 import os
@@ -72,8 +73,16 @@ def main(Strategy,StrategyConfig) -> None:
         data=list(all_data.values())[0][StrategyConfig().timeframe]
     )
 
+    # Run Monte Carlo simulation
+    mc_config = MonteCarloConfig()
+    mc_results = MonteCarloSimulator(results, mc_config).run()
+
+    logger.info(50 * '=')
+    for key, value in mc_results['statistics'].items():
+        logger.info(f"{key}: {value}")
+
     # Create plotter object
-    plotter = BacktestVisualizer(results,metrics)
+    plotter = BacktestVisualizer(results, metrics, mc_results)
 
     # Plot metrics
     plotter.generate_report()
@@ -88,6 +97,7 @@ def log_experiment(strategy_name,symbol,summary,metrics,strategy_config,data) ->
         'end_date':data['date'].iloc[-1],
         'bars':len(data),
         'strategy':strategy_name,
+        'change_made':'NaN',
         'symbol': symbol,
         'initial_capital': BacktestConfig.initial_capital,
         'commission_rate': BacktestConfig.commission_rate,

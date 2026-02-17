@@ -38,3 +38,7 @@ class Indicators:
         rs = avg_gain/avg_loss
 
         return 100 - (100 / (1 + rs))
+    
+    def ema(self,series:pd.Series,period:int) -> pd.Series:
+
+        return series.ewm(span=period,min_periods=period).mean()

@@ -140,3 +140,23 @@ class MonteCarloConfig:
             raise ValueError("n_simulations must be positive")
         if not (0 < self.ruin_threshold < 1):
             raise ValueError("ruin_threshold must be between 0 and 1")
+        
+@dataclass
+class EMAConsolidationBreakoutConfig:
+    ema_fast_length: int = 8
+    ema_slow_length: int = 20
+    ema_trend_length: int = 50
+    ema_filter_length: int = 200
+    atr_length: int = 14
+    consolidation_bar_length: int = 15
+    consolidation_mult: float = 3.0
+    timeframe: str = '1d'
+
+@dataclass
+class EMAConsolidationBreakoutOptimizerConfig:
+    ema_fast_length: list = field(default_factory=lambda: [2, 3, 5])
+    ema_slow_length: list = field(default_factory=lambda: [15, 25, 35])
+    ema_trend_length: list = field(default_factory=lambda: [60, 70, 80])
+    ema_filter_length: list = field(default_factory=lambda: [5, 10])
+    atr_length: list = field(default_factory=lambda: [10, 15, 20])
+    consolidation_bar_length: list = field(default_factory=lambda: [1.5, 2, 3])

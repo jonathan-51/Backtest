@@ -1,5 +1,5 @@
 from dataclasses import asdict
-from config import DataConfig, DataFetcherConfig, BacktestConfig, MetricsConfig, MonteCarloConfig, ATRChannelBreakoutConfig,RSIPullbackUptrendConfig, WalkForwardValidatorConfig,ATRChannelBreakoutOptimizerConfig,RSIPullbackOptimizerConfig
+from config import DataConfig, DataFetcherConfig, BacktestConfig, MetricsConfig, MonteCarloConfig, ATRChannelBreakoutConfig,RSIPullbackUptrendConfig, WalkForwardValidatorConfig,ATRChannelBreakoutOptimizerConfig,RSIPullbackOptimizerConfig,EMAConsolidationBreakoutConfig
 import logging
 from data_fetcher import DataFetcher
 from backtest import BacktestEngine
@@ -13,6 +13,7 @@ from datetime import datetime
 from strategies.test_ma_crossover import MACrossoverStrategy
 from strategies.atr_channel_breakout import ATRChannelBreakout
 from strategies.rsi_pullback_uptrend import RSIPullbackUptrend
+from strategies.ema_consolidation_breakout import EMAConsolidationBreakout
 from validation import WalkForwardValidator, WalkForwardOptimizer
 
 # Configure Logging
@@ -184,7 +185,6 @@ def optimize(Strategy, param_grid) -> None:
     logger.info(f"Verdict: {results['verdict']}")
 
 if __name__ == "__main__":
-    main(ATRChannelBreakout,ATRChannelBreakoutConfig)
-    #validate(ATRChannelBreakout)
-    #validate(RSIPullbackUptrend)
-    #optimize(ATRChannelBreakout, asdict(ATRChannelBreakoutOptimizerConfig()))
+    #main(ATRChannelBreakout,ATRChannelBreakoutConfig)
+    validate(EMAConsolidationBreakout)
+    #optimize(EMAConsolidationBreakout, asdict(ATRChannelBreakoutOptimizerConfig()))

@@ -13,8 +13,8 @@ class BacktestConfig:
     commission_rate: float = 0.001
     slippage: float = 0.0005
     spreads: float = 0.1
-    position_size: float = 0.33
-    max_positions: int = 3
+    position_size: float = 0.16
+    max_positions: int = 6
 
     def __post_init__(self):
         if self.initial_capital <= 0:
@@ -28,12 +28,22 @@ class DataConfig:
     Configuration for market data retrieval including 
     ticker symbols, timeframe, storage path, and date range
     """
-    symbol: str = 'AAPL'
-    symbols: List[str] = field(default_factory=lambda: ['AAPL', 'XOM', 'JPM'])
+    symbols: List[str] = field(default_factory=lambda: [
+    'AAPL',   # tech
+    'MSFT',   # tech
+    'XOM',    # energy
+    'CVX',    # energy
+    'JPM',    # finance
+    'GS',     # finance
+    'UNH',    # healthcare
+    'JNJ',    # healthcare
+    'CAT',    # industrials
+    'HD',     # consumer
+])
     timeframes: List[str] = field(default_factory=lambda: ['1d'])
     data_path: str = './data'
     cache_data:bool = True
-    lookback_period: str = "5 Y"
+    lookback_period: str = "10 Y"
     end_date: datetime = datetime(2025,1,1)
     min_bars_required: int = 20
 
@@ -63,11 +73,11 @@ class MetricsConfig:
 @dataclass
 class ATRChannelBreakoutConfig:
     timeframe: str = '1d'
-    sma_length: int = 20
-    atr_length: int = 20
-    envelope_mult: float = 1.5
+    sma_length: int = 30
+    atr_length: int = 14
+    envelope_mult: float = 2.0
     stop_mult: int = 2
-    trail_mult: int = 3
+    trail_mult: int = 4
 
 @dataclass
 class RSIPullbackUptrendConfig:
@@ -98,3 +108,20 @@ class WalkForwardValidatorConfig:
     avg_degradation_threshold_pass: float = -0.25
     avg_degradation_threshold_marginal: float = -0.50
 
+@dataclass
+class ATRChannelBreakoutOptimizerConfig:
+    """Configuration for walk-forward optimizer"""
+    sma_length: list = field(default_factory=lambda: [10, 20, 30])
+    atr_length: list = field(default_factory=lambda: [14, 20])
+    envelope_mult: list = field(default_factory=lambda: [1.0, 1.5, 2.0])
+    stop_mult: list = field(default_factory=lambda: [1, 2, 3])
+    trail_mult: list = field(default_factory=lambda: [2, 3, 4])
+
+@dataclass
+class RSIPullbackOptimizerConfig:
+    rsi_length: list = field(default_factory=lambda: [2, 3, 5])
+    rsi_entry_threshold: list = field(default_factory=lambda: [15, 25, 35])
+    rsi_exit_threshold: list = field(default_factory=lambda: [60, 70, 80])
+    exit_sma_length: list = field(default_factory=lambda: [5, 10])
+    atr_length: list = field(default_factory=lambda: [10, 15, 20])
+    stop_mult: list = field(default_factory=lambda: [1.5, 2, 3])

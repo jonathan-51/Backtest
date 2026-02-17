@@ -1,4 +1,5 @@
-from config import DataConfig, DataFetcherConfig, BacktestConfig, MetricsConfig, ATRChannelBreakoutConfig,RSIPullbackUptrendConfig, WalkForwardValidatorConfig
+from dataclasses import asdict
+from config import DataConfig, DataFetcherConfig, BacktestConfig, MetricsConfig, ATRChannelBreakoutConfig,RSIPullbackUptrendConfig, WalkForwardValidatorConfig,ATRChannelBreakoutOptimizerConfig,RSIPullbackOptimizerConfig
 import logging
 from data_fetcher import DataFetcher
 from backtest import BacktestEngine
@@ -11,7 +12,7 @@ from datetime import datetime
 from strategies.test_ma_crossover import MACrossoverStrategy
 from strategies.atr_channel_breakout import ATRChannelBreakout
 from strategies.rsi_pullback_uptrend import RSIPullbackUptrend
-from validation import WalkForwardValidator
+from validation import WalkForwardValidator, WalkForwardOptimizer
 
 # Configure Logging
 logging.basicConfig(
@@ -135,7 +136,30 @@ def validate(Strategy) -> None:
     logger.info(f"Avg Degradation: {results['avg_degradation']:.2%}")
     logger.info(f"Verdict: {results['verdict']}")
 
+def optimize(Strategy, param_grid) -> None:
+    """Run walk-forward optimization with parameter sweeps."""
+    data_config = DataConfig()
+    data_fetcher_config = DataFetcherConfig()
+
+    fetcher = DataFetcher(data_fetcher_config, data_config)
+    data = fetcher.fetch_all_timeframes(data_config.symbol)
+
+    if data is None:
+        return
+
+    optimizer = WalkForwardOptimizer(Strategy, param_grid, data)
+    results = optimizer.run()
+
+    for r in results['windows']:
+        logger.info(f"Window {r['window']}: best_params={r['best_params']}, "
+                    f"train_sharpe={r['train_sharpe']:.4f}, test_sharpe={r['test_sharpe']:.4f}, "
+                    f"degradation={r['degradation']:.2%}")
+
+    logger.info(f"Avg Degradation: {results['avg_degradation']:.2%}")
+    logger.info(f"Verdict: {results['verdict']}")
+
 if __name__ == "__main__":
-    main(RSIPullbackUptrend,RSIPullbackUptrendConfig)
+    main(ATRChannelBreakout,ATRChannelBreakoutConfig)
     #validate(ATRChannelBreakout)
     #validate(RSIPullbackUptrend)
+    #optimize(ATRChannelBreakout, asdict(ATRChannelBreakoutOptimizerConfig()))

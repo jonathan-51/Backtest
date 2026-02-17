@@ -4,6 +4,7 @@ from backtest import BacktestEngine
 from config import BacktestConfig,MetricsConfig,WalkForwardValidatorConfig
 from metrics import PerformanceMetrics
 import logging
+from itertools import product
 
 class WalkForwardValidator:
     """Walk-forward validation to test strategy edge on unseen data."""
@@ -107,4 +108,123 @@ class WalkForwardValidator:
             'avg_test_sharpe':avg_test_sharpe,
             'avg_degradation':avg_degradation,
             'verdict':verdict
+        }
+    
+
+class WalkForwardOptimizer:
+    """Sweeps aprameter combinations per train window, tests best on unseen data"""
+    def __init__(self,strategy_class,param_grid:dict,data:dict):
+        self.strategy_class = strategy_class
+        self.param_grid = param_grid
+        self.data = data
+        self.config = WalkForwardValidatorConfig
+        self.logger = logging.getLogger(__name__)
+
+    def _generate_combos(self) -> list[dict]:
+        """Generate all parameter combinations from the grid."""
+        keys = self.param_grid.keys()
+        values = self.param_grid.values()
+        return [dict(zip(keys,combo)) for combo in product(*values)]
+    
+    def _run_single(self, params: dict, data: dict) -> float:
+        """Run a single backtest with given params, return Sharpe ratio."""
+        strategy = self.strategy_class(**params)
+        engine = BacktestEngine(BacktestConfig(), strategy)
+        results = engine.run(data)
+
+        if results['summary']['total_trades'] == 0:
+            return float('-inf')
+
+        metrics = PerformanceMetrics(results, MetricsConfig()).generate_metrics()
+        return metrics['sharpe_ratio']
+        
+    def create_windows(self):
+        """Split data into rolling train/test windows (same logic as validator)."""
+        df = self.data[self.config.timeframe]
+        windows = []
+        start = 0
+
+        while start + self.config.train_bars + self.config.test_bars <= len(df):
+            train = df.iloc[start:start + self.config.train_bars].copy()
+            test = df.iloc[start + self.config.train_bars - self.config.warm_up_bars:
+                           start + self.config.train_bars + self.config.test_bars].copy()
+            windows.append((train,test))
+            start += self.config.test_bars
+
+        remaining = len(df) - (start + self.config.train_bars)
+        if remaining > self.config.min_remaining_bars:
+            train = df.iloc[start:start + self.config.train_bars].copy()
+            test = df.iloc[start + self.config.train_bars - self.config.warm_up_bars:].copy()
+            windows.append((train, test))
+
+        return windows
+    
+    def run(self) -> dict:
+        """Run walk-forward optimization across all windows."""
+        windows = self.create_windows()
+        combos = self._generate_combos()
+        self.logger.info(f"Walk-forward optimization: {len(windows)} windows, {len(combos)} param combos each")
+
+        results = []
+        for i, (train_df, test_df) in enumerate(windows):
+            self.logger.info(f"Window {i+1}/{len(windows)}: sweeping {len(combos)} combos on {len(train_df)} train bars")
+
+            # Sweep all combos on train data
+            best_sharpe = float('-inf')
+            best_params = None
+
+            for params in combos:
+                sharpe = self._run_single(params, {self.config.timeframe: train_df})
+                if sharpe > best_sharpe:
+                    best_sharpe = sharpe
+                    best_params = params
+
+            # Test best params on unseen data
+            test_sharpe = self._run_single(best_params, {self.config.timeframe: test_df})
+
+            # Compute degradation
+            if abs(best_sharpe) <= 0.1:
+                degradation = 0
+            elif best_sharpe != 0:
+                degradation = (test_sharpe - best_sharpe) / abs(best_sharpe)
+            else:
+                degradation = 0
+
+            self.logger.info(f"Window {i+1}: best_params={best_params}, "
+                           f"train_sharpe={best_sharpe:.4f}, test_sharpe={test_sharpe:.4f}, "
+                           f"degradation={degradation:.2%}")
+            
+            results.append({
+                'window': i + 1,
+                'best_params': best_params,
+                'train_bars': len(train_df),
+                'test_bars': len(test_df),
+                'train_sharpe': best_sharpe,
+                'test_sharpe': test_sharpe,
+                'degradation': degradation,
+            })
+
+        return self.summarize(results)
+    
+    def summarize(self, results: list[dict]) -> dict:
+        """Compute aggregate optimization stats."""
+        avg_train_sharpe = sum(r['train_sharpe'] for r in results) / len(results)
+        avg_test_sharpe = sum(r['test_sharpe'] for r in results) / len(results)
+        avg_degradation = sum(r['degradation'] for r in results) / len(results)
+
+        if avg_degradation > self.config.avg_degradation_threshold_pass:
+            verdict = "PASS"
+        elif avg_degradation > self.config.avg_degradation_threshold_marginal:
+            verdict = "MARGINAL"
+        else:
+            verdict = "FAIL"
+
+        self.logger.info(f"Optimization complete: avg_degradation={avg_degradation:.2%}, verdict={verdict}")
+
+        return {
+            'windows': results,
+            'avg_train_sharpe': avg_train_sharpe,
+            'avg_test_sharpe': avg_test_sharpe,
+            'avg_degradation': avg_degradation,
+            'verdict': verdict,
         }

@@ -8,7 +8,7 @@ from itertools import product
 
 class WalkForwardValidator:
     """Walk-forward validation to test strategy edge on unseen data."""
-    def __init__(self,strategy,data:Dict[str,pd.DataFrame]):
+    def __init__(self,strategy,data:Dict[str,Dict[str,pd.DataFrame]]):
         self.walk_forward_validator_config = WalkForwardValidatorConfig
         self.strategy = strategy
         self.data = data
@@ -17,26 +17,66 @@ class WalkForwardValidator:
         self.warm_up_bars = self.walk_forward_validator_config.warm_up_bars
         self.logger = logging.getLogger(__name__)
 
-    def create_windows(self) -> List[Tuple[pd.DataFrame,pd.DataFrame]]:
-        """Split data into rolling train/test windows"""
-        df = self.data[WalkForwardValidatorConfig.timeframe]
+    def _align_by_intersection(self,all_data:dict, timeframe: str) -> tuple[dict,pd.DatetimeIndex]:
+        """Align all symbols to the intersection of available dates."""
+        common_idx = None
+
+        for _, data in all_data.items():
+            if timeframe not in data:
+                raise ValueError(f"Missing timeframe '{timeframe}' in data")
+            df = data[timeframe]
+            idx = df.set_index('date').index
+            common_idx = idx if common_idx is None else common_idx.intersection(idx)
+
+        if common_idx is None:
+            raise ValueError("No data provided for alignment")
+
+        common_idx = common_idx.sort_values()
+
+        aligned = {}
+        for symbol, data in all_data.items():
+            df = data[timeframe].copy().set_index('date')
+            aligned_df = df.loc[common_idx].reset_index()
+            aligned[symbol] = {timeframe: aligned_df}
+
+        return aligned, common_idx
+
+    def create_windows(self) -> List[Tuple[dict,dict]]:
+        """Split multi-symbol data into rolling train/test windows (intersection aligned)."""
+        aligned, common_idx = self._align_by_intersection(self.data, self.walk_forward_validator_config.timeframe)
 
         windows=[]
         start = 0
-        # Creating windows
-        while start + self.train_bars + self.test_bars <= len(df):
-            train = df.iloc[start:start+self.train_bars].copy()
-            test = df.iloc[start+self.train_bars-self.warm_up_bars:start+self.train_bars+self.test_bars].copy()
-            windows.append((train,test))
+        while start + self.train_bars + self.test_bars <= len(common_idx):
+            train_dates = common_idx[start:start + self.train_bars]
+            test_dates = common_idx[start + self.train_bars - self.warm_up_bars:
+                                   start + self.train_bars + self.test_bars]
+
+            train_data = {}
+            test_data = {}
+
+            for symbol, data in aligned.items():
+                df = data[self.walk_forward_validator_config.timeframe].set_index('date')
+                train_data[symbol] = {self.walk_forward_validator_config.timeframe: df.loc[train_dates].reset_index()}
+                test_data[symbol] = {self.walk_forward_validator_config.timeframe: df.loc[test_dates].reset_index()}
+
+            windows.append((train_data, test_data))
             start += self.test_bars
 
-
-        # Handle last window if remaining data is smaller than test_bars
-        remaining = len(df) - (start + self.train_bars)
+        remaining = len(common_idx) - (start + self.train_bars)
         if remaining > self.walk_forward_validator_config.min_remaining_bars:
-            train = df.iloc[start:start + self.train_bars].copy()
-            test = df.iloc[start+self.train_bars-self.warm_up_bars:].copy()
-            windows.append((train,test))
+            train_dates = common_idx[start:start + self.train_bars]
+            test_dates = common_idx[start + self.train_bars - self.warm_up_bars:]
+
+            train_data = {}
+            test_data = {}
+
+            for symbol, data in aligned.items():
+                df = data[self.walk_forward_validator_config.timeframe].set_index('date')
+                train_data[symbol] = {self.walk_forward_validator_config.timeframe: df.loc[train_dates].reset_index()}
+                test_data[symbol] = {self.walk_forward_validator_config.timeframe: df.loc[test_dates].reset_index()}
+
+            windows.append((train_data, test_data))
 
         return windows
     
@@ -47,17 +87,20 @@ class WalkForwardValidator:
         self.logger.info(f"{self.strategy.__class__.__name__} -> Running walk-forward validation: {len(windows)} windows")
 
         results = []
-        for i,(train_df,test_df) in enumerate(windows):
-            self.logger.info(f"Window {i+1}/{len(windows)}: train={len(train_df)} bars, test={len(test_df)} bars")
+        for i,(train_data,test_data) in enumerate(windows):
+            sample_symbol = next(iter(train_data))
+            train_len = len(train_data[sample_symbol][self.walk_forward_validator_config.timeframe])
+            test_len = len(test_data[sample_symbol][self.walk_forward_validator_config.timeframe])
+            self.logger.info(f"Window {i+1}/{len(windows)}: train={train_len} bars, test={test_len} bars")
 
             # Fresh engine for train
-            train_engine = BacktestEngine(BacktestConfig,self.strategy)
-            train_results = train_engine.run({'1d':train_df})
+            train_engine = BacktestEngine(BacktestConfig(),self.strategy)
+            train_results = train_engine.run(train_data)
             train_metrics = PerformanceMetrics(train_results,MetricsConfig()).generate_metrics()
 
             # Fresh engine for test
-            test_engine = BacktestEngine(BacktestConfig,self.strategy)
-            test_results = test_engine.run({'1d':test_df})
+            test_engine = BacktestEngine(BacktestConfig(),self.strategy)
+            test_results = test_engine.run(test_data)
             test_metrics = PerformanceMetrics(test_results,MetricsConfig()).generate_metrics()
 
             # Compute degradation
@@ -73,8 +116,8 @@ class WalkForwardValidator:
 
             results.append({
                 'window':i+1,
-                'train_bars':len(train_df),
-                'test_bars':len(test_df),
+                'train_bars':train_len,
+                'test_bars':test_len,
                 'train_trades':train_results['summary']['total_trades'],
                 'test_trades':test_results['summary']['total_trades'],
                 'train_sharpe':train_sharpe,
@@ -113,7 +156,7 @@ class WalkForwardValidator:
 
 class WalkForwardOptimizer:
     """Sweeps aprameter combinations per train window, tests best on unseen data"""
-    def __init__(self,strategy_class,param_grid:dict,data:Dict[str,pd.DataFrame]):
+    def __init__(self,strategy_class,param_grid:dict,data:Dict[str,Dict[str,pd.DataFrame]]):
         self.strategy_class = strategy_class
         self.param_grid = param_grid
         self.data = data
@@ -137,50 +180,81 @@ class WalkForwardOptimizer:
 
         metrics = PerformanceMetrics(results, MetricsConfig()).generate_metrics()
         return metrics['sharpe_ratio']
-        
-    def create_windows(self):
-        """Split data into rolling train/test windows (same logic as validator)."""
-        df = self.data[self.config.timeframe]
+
+    def align_by_intersection(self,all_data:dict, timeframe: str) -> tuple[dict,pd.DataFrame]:
+        # all_data: {symbol: {timeframe: df}}
+        common_idx = None
+
+        for symbol, data in all_data.items():
+            df = data[timeframe]
+            idx = df.set_index('date').index
+            common_idx = idx if common_idx is None else common_idx.intersection(idx)
+
+        if common_idx is None:
+            raise ValueError("No data provided for alignment")
+
+        common_idx = common_idx.sort_values()
+
+        aligned = {}
+        for symbol, data in all_data.items():
+            df = data[timeframe].copy().set_index('date')
+            aligned_df = df.loc[common_idx].reset_index()
+            aligned[symbol] = {timeframe: aligned_df}
+
+        return aligned, common_idx
+
+    def create_windows_multi(self,all_data: dict, timeframe: str, train_bars: int, test_bars: int, warm_up: int):
+        aligned, common_idx = self.align_by_intersection(all_data,timeframe)
+
         windows = []
         start = 0
+        while start + train_bars + test_bars <= len(common_idx):
+            train_dates = common_idx[start:start + train_bars]
+            test_dates = common_idx[start + train_bars - warm_up:start + train_bars + test_bars]
 
-        while start + self.config.train_bars + self.config.test_bars <= len(df):
-            train = df.iloc[start:start + self.config.train_bars].copy()
-            test = df.iloc[start + self.config.train_bars - self.config.warm_up_bars:
-                           start + self.config.train_bars + self.config.test_bars].copy()
-            windows.append((train,test))
-            start += self.config.test_bars
+            train_data = {}
+            test_data = {}
 
-        remaining = len(df) - (start + self.config.train_bars)
-        if remaining > self.config.min_remaining_bars:
-            train = df.iloc[start:start + self.config.train_bars].copy()
-            test = df.iloc[start + self.config.train_bars - self.config.warm_up_bars:].copy()
-            windows.append((train, test))
+            for symbol, data in aligned.items():
+                df = data[timeframe].set_index('date')
+                train_data[symbol] = {timeframe: df.loc[train_dates].reset_index()}
+                test_data[symbol] = {timeframe: df.loc[test_dates].reset_index()}
+
+            windows.append((train_data, test_data))
+            start += test_bars
 
         return windows
     
     def run(self) -> dict:
         """Run walk-forward optimization across all windows."""
-        windows = self.create_windows()
+        windows = self.create_windows_multi(
+            self.data,
+            self.config.timeframe,
+            self.config.train_bars,
+            self.config.test_bars,
+            self.config.warm_up_bars,
+        )
         combos = self._generate_combos()
         self.logger.info(f"Walk-forward optimization: {len(windows)} windows, {len(combos)} param combos each")
 
         results = []
-        for i, (train_df, test_df) in enumerate(windows):
-            self.logger.info(f"Window {i+1}/{len(windows)}: sweeping {len(combos)} combos on {len(train_df)} train bars")
+        for i, (train_data, test_data) in enumerate(windows):
+            sample_symbol = next(iter(train_data))
+            train_len = len(train_data[sample_symbol][self.config.timeframe])
+            self.logger.info(f"Window {i+1}/{len(windows)}: sweeping {len(combos)} combos on {train_len} train bars")
 
             # Sweep all combos on train data
             best_sharpe = float('-inf')
             best_params = None
 
             for params in combos:
-                sharpe = self._run_single(params, {self.config.timeframe: train_df})
+                sharpe = self._run_single(params, train_data)
                 if sharpe > best_sharpe:
                     best_sharpe = sharpe
                     best_params = params
 
             # Test best params on unseen data
-            test_sharpe = self._run_single(best_params, {self.config.timeframe: test_df})
+            test_sharpe = self._run_single(best_params, test_data)
 
             # Compute degradation
             if abs(best_sharpe) <= 0.1:
@@ -197,8 +271,8 @@ class WalkForwardOptimizer:
             results.append({
                 'window': i + 1,
                 'best_params': best_params,
-                'train_bars': len(train_df),
-                'test_bars': len(test_df),
+                'train_bars': train_len,
+                'test_bars': len(test_data[sample_symbol][self.config.timeframe]),
                 'train_sharpe': best_sharpe,
                 'test_sharpe': test_sharpe,
                 'degradation': degradation,

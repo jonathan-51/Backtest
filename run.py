@@ -132,11 +132,16 @@ def validate(Strategy) -> None:
     fetcher = DataFetcher(data_fetcher_config,data_config)
 
     # Fetch data
-    data = fetcher.fetch_all_timeframes(data_config.symbols)
+    data = fetcher.fetch_all_symbols()
 
-    if data is None:
+    if not data:
         return
-    
+
+    spy_data = fetcher.fetch_all_timeframes('SPY')
+    if spy_data:
+        for symbol in data:
+            data[symbol]['spy_1d'] = spy_data['1d']
+
     # Create validator object
     validator = WalkForwardValidator(Strategy(),data)
 
@@ -157,10 +162,15 @@ def optimize(Strategy, param_grid) -> None:
     data_fetcher_config = DataFetcherConfig()
 
     fetcher = DataFetcher(data_fetcher_config, data_config)
-    data = fetcher.fetch_all_timeframes(data_config.symbols)
+    data = fetcher.fetch_all_symbols()
 
-    if data is None:
+    if not data:
         return
+
+    spy_data = fetcher.fetch_all_timeframes('SPY')
+    if spy_data:
+        for symbol in data:
+            data[symbol]['spy_1d'] = spy_data['1d']
 
     optimizer = WalkForwardOptimizer(Strategy, param_grid, data)
     results = optimizer.run()
@@ -174,7 +184,7 @@ def optimize(Strategy, param_grid) -> None:
     logger.info(f"Verdict: {results['verdict']}")
 
 if __name__ == "__main__":
-    #main(ATRChannelBreakout,ATRChannelBreakoutConfig)
+    main(ATRChannelBreakout,ATRChannelBreakoutConfig)
     #validate(ATRChannelBreakout)
     #validate(RSIPullbackUptrend)
-    optimize(ATRChannelBreakout, asdict(ATRChannelBreakoutOptimizerConfig()))
+    #optimize(ATRChannelBreakout, asdict(ATRChannelBreakoutOptimizerConfig()))

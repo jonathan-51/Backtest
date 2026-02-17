@@ -46,39 +46,34 @@ class ATRChannelBreakout(Strategy):
         df['signal'] = 'hold_cash'
         orders = {}
 
-        for i in range(1,len(df)):
-            if pd.isna(df['upper'].iloc[i]):
-                continue
+        # Vectorized buy condition: close crosses above upper envelope
+        buy_mask = (
+            df['prev_close'] <= df['upper']
+        ) & (
+            df['close'] > df['upper']
+        ) & df['upper'].notna()
 
-            prev_close = df['prev_close'].iloc[i]
-            curr_close = df['close'].iloc[i]
-            upper = df['upper'].iloc[i]
-            lower = df['lower'].iloc[i]
-            curr_atr = df['atr'].iloc[i]
+        df.loc[buy_mask, 'signal'] = 'buy'
 
-            # Entry: close crosses above upper envelope
-            if prev_close <= upper and curr_close > upper:
-                df.loc[df.index[i],'signal'] = 'buy'
-                orders[df.index[i]] = Order(
-                    stop_loss = max(lower, curr_close - self.stop_mult * curr_atr),
-                    trail_offset=self.trail_mult * curr_atr,
-                )
+        # Build orders only for buy rows (far fewer iterations than full loop)
+        for idx, row in df[buy_mask].iterrows():
+            orders[idx] = Order(
+                stop_loss=max(row['lower'], row['close'] - self.stop_mult * row['atr']),
+                trail_offset=self.trail_mult * row['atr'],
+            )
 
         # Regime filter: suppress buy signals when SPY is below its SMA
         if self.spy_sma_length > 0 and 'spy_1d' in data:
             spy_df = data['spy_1d'].copy().set_index('date')
             spy_sma = spy_df['close'].rolling(self.spy_sma_length).mean()
 
-            for i in range(len(df)):
-                if df['signal'].iloc[i] != 'buy':
-                    continue
-                bar_date = df['date'].iloc[i]
-                if bar_date not in spy_sma.index:
-                    continue
-                sma_val = spy_sma.loc[bar_date]
-                spy_close = spy_df.loc[bar_date, 'close']
-                if pd.isna(sma_val) or spy_close < sma_val:
-                    df.loc[df.index[i], 'signal'] = 'hold_cash'
-                    orders.pop(df.index[i], None)
+            spy_sma_aligned = df['date'].map(spy_sma)
+            spy_close_aligned = df['date'].map(spy_df['close'])
+            regime_fail = spy_sma_aligned.isna() | (spy_close_aligned < spy_sma_aligned)
+
+            suppress_mask = (df['signal'] == 'buy') & regime_fail
+            df.loc[suppress_mask, 'signal'] = 'hold_cash'
+            for idx in df.index[suppress_mask]:
+                orders.pop(idx, None)
 
         return df[['date','signal','close','high','low']].copy(), orders

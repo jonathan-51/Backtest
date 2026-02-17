@@ -73,12 +73,12 @@ class MetricsConfig:
 @dataclass
 class ATRChannelBreakoutConfig:
     timeframe: str = '1d'
-    sma_length: int = 30
-    atr_length: int = 14
-    envelope_mult: float = 2.0
+    sma_length: int = 20
+    atr_length: int = 20
+    envelope_mult: float = 1.5
     stop_mult: int = 2
-    trail_mult: int = 4
-    spy_sma_length: int = 200   # set to 0 to disable regime filter
+    trail_mult: int = 3
+    spy_sma_length: int = 0   # set to 0 to disable regime filter
 
 @dataclass
 class RSIPullbackUptrendConfig:
@@ -112,11 +112,11 @@ class WalkForwardValidatorConfig:
 @dataclass
 class ATRChannelBreakoutOptimizerConfig:
     """Configuration for walk-forward optimizer"""
-    sma_length: list = field(default_factory=lambda: [10, 20, 30])
-    atr_length: list = field(default_factory=lambda: [14, 20])
-    envelope_mult: list = field(default_factory=lambda: [1.0, 1.5, 2.0])
-    stop_mult: list = field(default_factory=lambda: [1, 2, 3])
-    trail_mult: list = field(default_factory=lambda: [2, 3, 4])
+    sma_length: list = field(default_factory=lambda: [20,30])
+    atr_length: list = field(default_factory=lambda: [20,30])
+    envelope_mult: list = field(default_factory=lambda: [1.5,2.0])
+    stop_mult: list = field(default_factory=lambda: [2,3])
+    trail_mult: list = field(default_factory=lambda: [3,4])
 
 @dataclass
 class RSIPullbackOptimizerConfig:

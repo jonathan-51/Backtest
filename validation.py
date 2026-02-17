@@ -1,5 +1,5 @@
 import pandas as pd
-from typing import List,Tuple
+from typing import List,Tuple,Dict
 from backtest import BacktestEngine
 from config import BacktestConfig,MetricsConfig,WalkForwardValidatorConfig
 from metrics import PerformanceMetrics
@@ -8,7 +8,7 @@ from itertools import product
 
 class WalkForwardValidator:
     """Walk-forward validation to test strategy edge on unseen data."""
-    def __init__(self,strategy,data:dict):
+    def __init__(self,strategy,data:Dict[str,pd.DataFrame]):
         self.walk_forward_validator_config = WalkForwardValidatorConfig
         self.strategy = strategy
         self.data = data
@@ -113,7 +113,7 @@ class WalkForwardValidator:
 
 class WalkForwardOptimizer:
     """Sweeps aprameter combinations per train window, tests best on unseen data"""
-    def __init__(self,strategy_class,param_grid:dict,data:dict):
+    def __init__(self,strategy_class,param_grid:dict,data:Dict[str,pd.DataFrame]):
         self.strategy_class = strategy_class
         self.param_grid = param_grid
         self.data = data

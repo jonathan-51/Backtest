@@ -78,6 +78,7 @@ class ATRChannelBreakoutConfig:
     envelope_mult: float = 2.0
     stop_mult: int = 2
     trail_mult: int = 4
+    spy_sma_length: int = 200   # set to 0 to disable regime filter
 
 @dataclass
 class RSIPullbackUptrendConfig:

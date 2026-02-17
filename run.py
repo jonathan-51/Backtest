@@ -43,6 +43,12 @@ def main(Strategy,StrategyConfig) -> None:
     if not all_data:
         return
 
+    # Fetch SPY regime data and inject into each symbol's data dict
+    spy_data = fetcher.fetch_all_timeframes('SPY')
+    if spy_data:
+        for symbol in all_data:
+            all_data[symbol]['spy_1d'] = spy_data['1d']
+
     # Run backtest
     results = backtest.run(all_data)
 
@@ -97,7 +103,6 @@ def log_experiment(strategy_name,symbol,summary,metrics,strategy_config,data) ->
         'end_date':data['date'].iloc[-1],
         'bars':len(data),
         'strategy':strategy_name,
-        'change_made':'NaN',
         'symbol': symbol,
         'initial_capital': BacktestConfig.initial_capital,
         'commission_rate': BacktestConfig.commission_rate,
@@ -127,7 +132,7 @@ def validate(Strategy) -> None:
     fetcher = DataFetcher(data_fetcher_config,data_config)
 
     # Fetch data
-    data = fetcher.fetch_all_timeframes(data_config.symbol)
+    data = fetcher.fetch_all_timeframes(data_config.symbols)
 
     if data is None:
         return
@@ -152,7 +157,7 @@ def optimize(Strategy, param_grid) -> None:
     data_fetcher_config = DataFetcherConfig()
 
     fetcher = DataFetcher(data_fetcher_config, data_config)
-    data = fetcher.fetch_all_timeframes(data_config.symbol)
+    data = fetcher.fetch_all_timeframes(data_config.symbols)
 
     if data is None:
         return
@@ -169,7 +174,7 @@ def optimize(Strategy, param_grid) -> None:
     logger.info(f"Verdict: {results['verdict']}")
 
 if __name__ == "__main__":
-    main(ATRChannelBreakout,ATRChannelBreakoutConfig)
+    #main(ATRChannelBreakout,ATRChannelBreakoutConfig)
     #validate(ATRChannelBreakout)
     #validate(RSIPullbackUptrend)
-    #optimize(ATRChannelBreakout, asdict(ATRChannelBreakoutOptimizerConfig()))
+    optimize(ATRChannelBreakout, asdict(ATRChannelBreakoutOptimizerConfig()))

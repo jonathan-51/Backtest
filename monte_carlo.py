@@ -38,10 +38,7 @@ class MonteCarloSimulator:
 
         # Build equity curves: prepend initial capital, then cumsum PnLs
         cumulative_pnls = np.cumsum(resampled_pnls, axis=1)
-        equity_curves = np.column_stack([
-            np.full(n_sims, self.initial_capital),
-            self.initial_capital + cumulative_pnls
-        ])
+        equity_curves = np.column_stack([np.full(n_sims, self.initial_capital),self.initial_capital + cumulative_pnls])
 
         final_equities = equity_curves[:, -1]
         max_drawdowns = self._compute_max_drawdowns(equity_curves)

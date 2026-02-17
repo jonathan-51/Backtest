@@ -6,19 +6,26 @@ from order import Order
 from strategies.base import Strategy
 
 class ATRChannelBreakout(Strategy):
-    """Trend-following strategy that enters long when price breaks above an ATR envelope around the SMA."""
-    def __init__(self, 
-                 sma_length = ATRChannelBreakoutConfig.sma_length, 
-                 atr_length = ATRChannelBreakoutConfig.atr_length, 
+    """Trend-following strategy that enters long when price breaks above an ATR envelope around the SMA.
+
+    Optionally applies a SPY SMA regime filter: buy signals are suppressed when SPY is
+    trading below its spy_sma_length moving average, keeping the strategy in cash during
+    bear market regimes. Set spy_sma_length=0 to disable.
+    """
+    def __init__(self,
+                 sma_length = ATRChannelBreakoutConfig.sma_length,
+                 atr_length = ATRChannelBreakoutConfig.atr_length,
                  envelope_mult = ATRChannelBreakoutConfig.envelope_mult,
                  stop_mult = ATRChannelBreakoutConfig.stop_mult,
                  trail_mult = ATRChannelBreakoutConfig.trail_mult,
-                 timeframe = ATRChannelBreakoutConfig.timeframe):
+                 timeframe = ATRChannelBreakoutConfig.timeframe,
+                 spy_sma_length = ATRChannelBreakoutConfig.spy_sma_length):
         self.sma_length = sma_length
         self.atr_length = atr_length
         self.envelope_mult = envelope_mult
         self.stop_mult = stop_mult
         self.trail_mult = trail_mult
+        self.spy_sma_length = spy_sma_length
         self.indicator = Indicators()
         self.timeframe = timeframe
 
@@ -56,5 +63,22 @@ class ATRChannelBreakout(Strategy):
                     stop_loss = max(lower, curr_close - self.stop_mult * curr_atr),
                     trail_offset=self.trail_mult * curr_atr,
                 )
+
+        # Regime filter: suppress buy signals when SPY is below its SMA
+        if self.spy_sma_length > 0 and 'spy_1d' in data:
+            spy_df = data['spy_1d'].copy().set_index('date')
+            spy_sma = spy_df['close'].rolling(self.spy_sma_length).mean()
+
+            for i in range(len(df)):
+                if df['signal'].iloc[i] != 'buy':
+                    continue
+                bar_date = df['date'].iloc[i]
+                if bar_date not in spy_sma.index:
+                    continue
+                sma_val = spy_sma.loc[bar_date]
+                spy_close = spy_df.loc[bar_date, 'close']
+                if pd.isna(sma_val) or spy_close < sma_val:
+                    df.loc[df.index[i], 'signal'] = 'hold_cash'
+                    orders.pop(df.index[i], None)
 
         return df[['date','signal','close','high','low']].copy(), orders

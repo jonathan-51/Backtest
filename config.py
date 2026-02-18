@@ -29,16 +29,44 @@ class DataConfig:
     ticker symbols, timeframe, storage path, and date range
     """
     symbols: List[str] = field(default_factory=lambda: [
-    'AAPL',   # tech
-    'MSFT',   # tech
-    'XOM',    # energy
-    'CVX',    # energy
-    'JPM',    # finance
-    'GS',     # finance
-    'UNH',    # healthcare
-    'JNJ',    # healthcare
-    'CAT',    # industrials
-    'HD',     # consumer
+    # Tech / Growth
+    'AAPL',   # Apple - mega cap tech
+    'MSFT',   # Microsoft - cloud/AI
+    'NVDA',   # Nvidia - GPU/AI
+    'META',   # Meta - social media
+    'GOOGL',  # Alphabet - search/cloud
+    'AMZN',   # Amazon - ecommerce/cloud
+    'AMAT',   # Applied Materials - semis equipment
+    'PANW',   # Palo Alto - cybersecurity
+    # Finance
+    'JPM',    # JPMorgan - large bank
+    'GS',     # Goldman Sachs - investment bank
+    'V',      # Visa - payments
+    'MA',     # Mastercard - payments
+    'BAC',    # Bank of America
+    # Healthcare
+    'UNH',    # UnitedHealth - managed care
+    'JNJ',    # Johnson & Johnson - diversified
+    'LLY',    # Eli Lilly - pharma/GLP-1
+    'ABBV',   # AbbVie - biotech
+    # Energy
+    'XOM',    # ExxonMobil
+    'CVX',    # Chevron
+    'SLB',    # SLB - oilfield services
+    # Industrials
+    'CAT',    # Caterpillar - machinery
+    'DE',     # Deere - ag equipment
+    'LMT',    # Lockheed Martin - defense
+    'UNP',    # Union Pacific - rail
+    # Consumer Discretionary
+    'HD',     # Home Depot
+    'NKE',    # Nike
+    'TSLA',   # Tesla - EV
+    # Consumer Staples
+    'COST',   # Costco
+    'PG',     # Procter & Gamble
+    # Materials
+    'FCX',    # Freeport-McMoRan - copper/gold
 ])
     timeframes: List[str] = field(default_factory=lambda: ['1d'])
     data_path: str = './data'
@@ -142,6 +170,19 @@ class MonteCarloConfig:
             raise ValueError("ruin_threshold must be between 0 and 1")
         
 @dataclass
+class RegimeFilterConfig:
+    """Configuration for the market regime scoring filter."""
+    sma_long: int = 200          # SMA period for SPY/QQQ trend checks
+    sma_short: int = 50          # SMA period for HYG credit check
+    sma_ratio: int = 20          # Rolling window for rotation ratio trend
+    vix_threshold: float = 20.0  # VIX level below which regime is risk-on
+    regime_tickers: List[str] = field(default_factory=lambda: [
+        'SPY', 'QQQ', 'IWM', 'RSP',
+        'HYG', 'TLT',
+        'SPHB', 'SPLV', 'XLY', 'XLP',
+    ])  # VIX excluded: IB cannot fetch index data as a standard security
+
+@dataclass
 class EMAConsolidationBreakoutConfig:
     ema_fast_length: int = 8
     ema_slow_length: int = 20
@@ -151,6 +192,8 @@ class EMAConsolidationBreakoutConfig:
     consolidation_bar_length: int = 15
     consolidation_mult: float = 3.0
     timeframe: str = '1d'
+    use_regime_filter: bool = True
+    regime_score_threshold: int = 3  # Minimum score (0-8) to allow buy signals
 
 @dataclass
 class EMAConsolidationBreakoutOptimizerConfig:

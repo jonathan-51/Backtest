@@ -13,10 +13,12 @@ class RegimeFilter:
     def __init__(self,
                  sma_long: int = 200,
                  sma_short: int = 50,
+                 tlt_sma_short: int = 20,
                  sma_ratio: int = 20,
                  vix_threshold: float = 20.0):
         self.sma_long = sma_long
         self.sma_short = sma_short
+        self.tlt_sma_short = tlt_sma_short
         self.sma_ratio = sma_ratio
         self.vix_threshold = vix_threshold
 
@@ -94,7 +96,7 @@ class RegimeFilter:
         close = self._get_close(regime_data, 'TLT')
         if close is None:
             return pd.Series(0, index=base_index)
-        sma20 = close.rolling(20).mean()
+        sma20 = close.rolling(self.tlt_sma_short).mean()
         sma50 = close.rolling(self.sma_short).mean()
         return (sma20 < sma50).astype(int).reindex(base_index, fill_value=0)
 

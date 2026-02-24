@@ -15,7 +15,10 @@ class EMAConsolidationBreakout(Strategy):
                  ema_slow_length = EMAConsolidationBreakoutConfig.ema_slow_length,
                  ema_trend_length = EMAConsolidationBreakoutConfig.ema_trend_length,
                  ema_filter_length = EMAConsolidationBreakoutConfig.ema_filter_length,
+                 ema_lookback = EMAConsolidationBreakoutConfig.ema_lookback,
                  atr_length = EMAConsolidationBreakoutConfig.atr_length,
+                 stop_atr_mult = EMAConsolidationBreakoutConfig.stop_atr_mult,
+                 trail_atr_mult = EMAConsolidationBreakoutConfig.trail_atr_mult,
                  consolidation_bar_length = EMAConsolidationBreakoutConfig.consolidation_bar_length,
                  consolidation_mult = EMAConsolidationBreakoutConfig.consolidation_mult,
                  timeframe = EMAConsolidationBreakoutConfig.timeframe,
@@ -25,7 +28,10 @@ class EMAConsolidationBreakout(Strategy):
         self.ema_slow_length = ema_slow_length
         self.ema_trend_length = ema_trend_length
         self.ema_filter_length = ema_filter_length
+        self.ema_lookback = ema_lookback
         self.atr_length = atr_length
+        self.stop_atr_mult = stop_atr_mult
+        self.trail_atr_mult = trail_atr_mult
         self.consolidation_bar_length = consolidation_bar_length
         self.consolidation_mult = consolidation_mult
         self.use_regime_filter = use_regime_filter
@@ -47,7 +53,7 @@ class EMAConsolidationBreakout(Strategy):
         df['consolidation_high'] = df['high'].shift(1).rolling(self.consolidation_bar_length).max()
         df['consolidation_low'] = df['low'].shift(1).rolling(self.consolidation_bar_length).min()
 
-        df['up_trending'] = df['ema_filter'] > df['ema_filter'].shift(60)
+        df['up_trending'] = df['ema_filter'] > df['ema_filter'].shift(self.ema_lookback)
 
         df['signal'] = 'hold_cash'
         orders = {}
@@ -74,8 +80,8 @@ class EMAConsolidationBreakout(Strategy):
         # Build orders only for buy rows (far fewer iterations than full loop)
         for idx, row in df[buy_mask].iterrows():
             orders[idx] = Order(
-                stop_loss=row['ema_slow'] - 0.5 * row['atr'],
-                trail_offset=2.0 * row['atr'],
+                stop_loss=row['ema_slow'] - self.stop_atr_mult * row['atr'],
+                trail_offset=self.trail_atr_mult * row['atr'],
             )
 
         # Regime filter: suppress buy signals when market environment is unfavourable
@@ -83,6 +89,7 @@ class EMAConsolidationBreakout(Strategy):
             regime_filter = RegimeFilter(
                 sma_long=RegimeFilterConfig.sma_long,
                 sma_short=RegimeFilterConfig.sma_short,
+                tlt_sma_short=RegimeFilterConfig.tlt_sma_short,
                 sma_ratio=RegimeFilterConfig.sma_ratio,
                 vix_threshold=RegimeFilterConfig.vix_threshold,
             )

@@ -174,6 +174,7 @@ class RegimeFilterConfig:
     """Configuration for the market regime scoring filter."""
     sma_long: int = 200          # SMA period for SPY/QQQ trend checks
     sma_short: int = 50          # SMA period for HYG credit check
+    tlt_sma_short: int = 20      # Short SMA period for TLT declining check
     sma_ratio: int = 20          # Rolling window for rotation ratio trend
     vix_threshold: float = 20.0  # VIX level below which regime is risk-on
     regime_tickers: List[str] = field(default_factory=lambda: [
@@ -188,7 +189,10 @@ class EMAConsolidationBreakoutConfig:
     ema_slow_length: int = 20
     ema_trend_length: int = 50
     ema_filter_length: int = 200
+    ema_lookback: int = 60
     atr_length: int = 14
+    stop_atr_mult: float = 0.5
+    trail_atr_mult: float = 2.0
     consolidation_bar_length: int = 15
     consolidation_mult: float = 3.0
     timeframe: str = '1d'

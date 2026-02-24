@@ -10,7 +10,6 @@ import numpy as np
 import csv
 import os
 from datetime import datetime
-from strategies.test_ma_crossover import MACrossoverStrategy
 from strategies.atr_channel_breakout import ATRChannelBreakout
 from strategies.rsi_pullback_uptrend import RSIPullbackUptrend
 from strategies.ema_consolidation_breakout import EMAConsolidationBreakout
@@ -24,25 +23,29 @@ logging.basicConfig(
 logging.getLogger("ib_insync").setLevel(level=logging.WARNING)
 logger = logging.getLogger(__name__)
 
-def _fetch_regime_data(fetcher: DataFetcher) -> dict:
-    """Fetch daily OHLCV data for all regime scoring ETFs."""
+def _inject_regime_data(fetcher: DataFetcher,all_data: dict) -> None:
+    """Fetch regime ETF data and inject it into every symbol's data dict."""
+    
+    # Fetch daily bars for each regime scoring ETF (SPY, QQQ, HYG, etc.)
     regime_data = {}
     for ticker in RegimeFilterConfig().regime_tickers:
         td = fetcher.fetch_all_timeframes(ticker)
         if td and '1d' in td:
             regime_data[ticker] = td['1d']
+
     logger.info(f"Regime ETFs fetched: {list(regime_data.keys())}")
     missing = [t for t in RegimeFilterConfig().regime_tickers if t not in regime_data]
     if missing:
         logger.warning(f"Regime ETFs missing (will score 0): {missing}")
-    return regime_data
 
-def _inject_regime_data(all_data: dict, regime_data: dict) -> None:
-    """Inject regime ETF data into every symbol's data dict."""
-    if regime_data:
-        for symbol in all_data:
-            all_data[symbol]['regime_data'] = regime_data
+    # Attach regime data to each symbol so strategies can access it
+    for symbol in all_data:
+        all_data[symbol]['regime_data'] = regime_data
 
+        # ATRChannelBreakout reads spy_1d directly for its own SMA regime filter
+        if 'SPY' in regime_data:
+            all_data[symbol]['spy_1d'] = regime_data['SPY']          
+        
 def main(Strategy,StrategyConfig) -> None:
     """Computes complete backtest results"""
 
@@ -64,13 +67,7 @@ def main(Strategy,StrategyConfig) -> None:
         return
 
     # Fetch regime ETF data and inject into each symbol's data dict
-    regime_data = _fetch_regime_data(fetcher)
-    _inject_regime_data(all_data, regime_data)
-
-    # Also keep spy_1d for backward compatibility with ATRChannelBreakout
-    if 'SPY' in regime_data:
-        for symbol in all_data:
-            all_data[symbol]['spy_1d'] = regime_data['SPY']
+    _inject_regime_data(fetcher,all_data)
 
     # Run backtest
     results = backtest.run(all_data)
@@ -160,11 +157,8 @@ def validate(Strategy) -> None:
     if not data:
         return
 
-    regime_data = _fetch_regime_data(fetcher)
-    _inject_regime_data(data, regime_data)
-    if 'SPY' in regime_data:
-        for symbol in data:
-            data[symbol]['spy_1d'] = regime_data['SPY']
+    # Fetch regime ETF data and inject into each symbol's data dict
+    _inject_regime_data(fetcher,data)
 
     # Create validator object
     validator = WalkForwardValidator(Strategy(),data)
@@ -191,11 +185,8 @@ def optimize(Strategy, param_grid) -> None:
     if not data:
         return
 
-    regime_data = _fetch_regime_data(fetcher)
-    _inject_regime_data(data, regime_data)
-    if 'SPY' in regime_data:
-        for symbol in data:
-            data[symbol]['spy_1d'] = regime_data['SPY']
+    # Fetch regime ETF data and inject into each symbol's data dict
+    _inject_regime_data(fetcher,data)
 
     optimizer = WalkForwardOptimizer(Strategy, param_grid, data)
     results = optimizer.run()

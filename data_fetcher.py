@@ -291,8 +291,8 @@ class DataFetcher:
         # Check for missing values
         if df.isnull().any().any():
             self.logger.warning(f"Found {df.isnull().sum().sum()} missing values")
-            df = df.fillna(method='ffill')
-            df = df.fillna(method='bfill')
+            df = df.ffill()
+            df = df.bfill()
 
         # Check for negative prices
         if (df[['open','high','close','low']] < 0).any().any():

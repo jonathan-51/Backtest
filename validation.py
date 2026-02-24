@@ -6,6 +6,31 @@ from metrics import PerformanceMetrics
 import logging
 from itertools import product
 
+def align_by_intersection(all_data:dict, timeframe: str) -> tuple[dict,pd.DatetimeIndex]:
+    """Align all symbols to the intersection of available dates."""
+    common_idx = None
+
+    for _, data in all_data.items():
+        if timeframe not in data:
+            raise ValueError(f"Missing timeframe '{timeframe}' in data")
+        df = data[timeframe]
+        idx = df.set_index('date').index
+        common_idx = idx if common_idx is None else common_idx.intersection(idx)
+
+    if common_idx is None:
+        raise ValueError("No data provided for alignment")
+
+    common_idx = common_idx.sort_values()
+
+    aligned = {}
+    for symbol, data in all_data.items():
+        df = data[timeframe].copy().set_index('date')
+        aligned_df = df.loc[common_idx].reset_index()
+        aligned[symbol] = {timeframe: aligned_df}
+
+    return aligned, common_idx
+
+
 class WalkForwardValidator:
     """Walk-forward validation to test strategy edge on unseen data."""
     def __init__(self,strategy,data:Dict[str,Dict[str,pd.DataFrame]]):
@@ -17,33 +42,9 @@ class WalkForwardValidator:
         self.warm_up_bars = self.walk_forward_validator_config.warm_up_bars
         self.logger = logging.getLogger(__name__)
 
-    def _align_by_intersection(self,all_data:dict, timeframe: str) -> tuple[dict,pd.DatetimeIndex]:
-        """Align all symbols to the intersection of available dates."""
-        common_idx = None
-
-        for _, data in all_data.items():
-            if timeframe not in data:
-                raise ValueError(f"Missing timeframe '{timeframe}' in data")
-            df = data[timeframe]
-            idx = df.set_index('date').index
-            common_idx = idx if common_idx is None else common_idx.intersection(idx)
-
-        if common_idx is None:
-            raise ValueError("No data provided for alignment")
-
-        common_idx = common_idx.sort_values()
-
-        aligned = {}
-        for symbol, data in all_data.items():
-            df = data[timeframe].copy().set_index('date')
-            aligned_df = df.loc[common_idx].reset_index()
-            aligned[symbol] = {timeframe: aligned_df}
-
-        return aligned, common_idx
-
     def create_windows(self) -> List[Tuple[dict,dict]]:
         """Split multi-symbol data into rolling train/test windows (intersection aligned)."""
-        aligned, common_idx = self._align_by_intersection(self.data, self.walk_forward_validator_config.timeframe)
+        aligned, common_idx = align_by_intersection(self.data, self.walk_forward_validator_config.timeframe)
 
         windows=[]
         start = 0
@@ -181,30 +182,8 @@ class WalkForwardOptimizer:
         metrics = PerformanceMetrics(results, MetricsConfig()).generate_metrics()
         return metrics['sharpe_ratio']
 
-    def align_by_intersection(self,all_data:dict, timeframe: str) -> tuple[dict,pd.DataFrame]:
-        # all_data: {symbol: {timeframe: df}}
-        common_idx = None
-
-        for symbol, data in all_data.items():
-            df = data[timeframe]
-            idx = df.set_index('date').index
-            common_idx = idx if common_idx is None else common_idx.intersection(idx)
-
-        if common_idx is None:
-            raise ValueError("No data provided for alignment")
-
-        common_idx = common_idx.sort_values()
-
-        aligned = {}
-        for symbol, data in all_data.items():
-            df = data[timeframe].copy().set_index('date')
-            aligned_df = df.loc[common_idx].reset_index()
-            aligned[symbol] = {timeframe: aligned_df}
-
-        return aligned, common_idx
-
     def create_windows_multi(self,all_data: dict, timeframe: str, train_bars: int, test_bars: int, warm_up: int):
-        aligned, common_idx = self.align_by_intersection(all_data,timeframe)
+        aligned, common_idx = align_by_intersection(all_data,timeframe)
 
         windows = []
         start = 0

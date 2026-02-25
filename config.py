@@ -29,49 +29,12 @@ class DataConfig:
     ticker symbols, timeframe, storage path, and date range
     """
     symbols: List[str] = field(default_factory=lambda: [
-    # Tech / Growth
-    'AAPL',   # Apple - mega cap tech
-    'MSFT',   # Microsoft - cloud/AI
-    'NVDA',   # Nvidia - GPU/AI
-    'META',   # Meta - social media
-    'GOOGL',  # Alphabet - search/cloud
-    'AMZN',   # Amazon - ecommerce/cloud
-    'AMAT',   # Applied Materials - semis equipment
-    'PANW',   # Palo Alto - cybersecurity
-    # Finance
-    'JPM',    # JPMorgan - large bank
-    'GS',     # Goldman Sachs - investment bank
-    'V',      # Visa - payments
-    'MA',     # Mastercard - payments
-    'BAC',    # Bank of America
-    # Healthcare
-    'UNH',    # UnitedHealth - managed care
-    'JNJ',    # Johnson & Johnson - diversified
-    'LLY',    # Eli Lilly - pharma/GLP-1
-    'ABBV',   # AbbVie - biotech
-    # Energy
-    'XOM',    # ExxonMobil
-    'CVX',    # Chevron
-    'SLB',    # SLB - oilfield services
-    # Industrials
-    'CAT',    # Caterpillar - machinery
-    'DE',     # Deere - ag equipment
-    'LMT',    # Lockheed Martin - defense
-    'UNP',    # Union Pacific - rail
-    # Consumer Discretionary
-    'HD',     # Home Depot
-    'NKE',    # Nike
-    'TSLA',   # Tesla - EV
-    # Consumer Staples
-    'COST',   # Costco
-    'PG',     # Procter & Gamble
-    # Materials
-    'FCX',    # Freeport-McMoRan - copper/gold
+    'QQQ',    # Nasdaq-100 ETF
 ])
-    timeframes: List[str] = field(default_factory=lambda: ['1d'])
+    timeframes: List[str] = field(default_factory=lambda: ['1m'])
     data_path: str = './data'
     cache_data:bool = True
-    lookback_period: str = "10 Y"
+    lookback_period: str = "6 M"
     end_date: datetime = datetime(2025,1,1)
     min_bars_required: int = 20
 
@@ -207,3 +170,16 @@ class EMAConsolidationBreakoutOptimizerConfig:
     ema_filter_length: list = field(default_factory=lambda: [5, 10])
     atr_length: list = field(default_factory=lambda: [10, 15, 20])
     consolidation_bar_length: list = field(default_factory=lambda: [1.5, 2, 3])
+
+@dataclass
+class RSIMeanReversionConfig:
+    timeframe: str = '1m'
+    top_threshold: int = 70
+    bottom_threshold: int = 30
+    rsi_ema_length: int = 14
+    rsi_length: int = 14
+    rsi_ema_gap_threshold: float = 15  # |RSI - EMA(RSI)| threshold for entry
+    ema_slow_length: int = 20
+    ema_trend_length: int = 50
+    atr_length: int = 14
+    stop_mult: float = 2.0

@@ -1,5 +1,5 @@
 from dataclasses import asdict
-from config import DataConfig, DataFetcherConfig, BacktestConfig, MetricsConfig, MonteCarloConfig, ATRChannelBreakoutConfig,RSIPullbackUptrendConfig, WalkForwardValidatorConfig,ATRChannelBreakoutOptimizerConfig,RSIPullbackOptimizerConfig,EMAConsolidationBreakoutConfig,RegimeFilterConfig
+from config import DataConfig, DataFetcherConfig, BacktestConfig, MetricsConfig, MonteCarloConfig, ATRChannelBreakoutConfig,RSIPullbackUptrendConfig, WalkForwardValidatorConfig,ATRChannelBreakoutOptimizerConfig,RSIPullbackOptimizerConfig,EMAConsolidationBreakoutConfig,RegimeFilterConfig,RSIMeanReversionConfig
 import logging
 from data_fetcher import DataFetcher
 from backtest import BacktestEngine
@@ -13,6 +13,7 @@ from datetime import datetime
 from strategies.atr_channel_breakout import ATRChannelBreakout
 from strategies.rsi_pullback_uptrend import RSIPullbackUptrend
 from strategies.ema_consolidation_breakout import EMAConsolidationBreakout
+from strategies.rsi_mean_reversion import RSIMeanReversion
 from validation import WalkForwardValidator, WalkForwardOptimizer
 
 # Configure Logging
@@ -67,7 +68,7 @@ def main(Strategy,StrategyConfig) -> None:
         return
 
     # Fetch regime ETF data and inject into each symbol's data dict
-    _inject_regime_data(fetcher,all_data)
+    #_inject_regime_data(fetcher,all_data)
 
     # Run backtest
     results = backtest.run(all_data)
@@ -200,6 +201,7 @@ def optimize(Strategy, param_grid) -> None:
     logger.info(f"Verdict: {results['verdict']}")
 
 if __name__ == "__main__":
-    main(EMAConsolidationBreakout,EMAConsolidationBreakoutConfig)
+    main(RSIMeanReversion,RSIMeanReversionConfig)
+    #main(EMAConsolidationBreakout,EMAConsolidationBreakoutConfig)
     #validate(EMAConsolidationBreakout)
     #optimize(EMAConsolidationBreakout, asdict(ATRChannelBreakoutOptimizerConfig()))

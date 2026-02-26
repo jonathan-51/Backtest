@@ -56,24 +56,28 @@ class RSIMeanReversion(Strategy):
                 # Entry: go long
                 if (curr_rsi < self.bottom_threshold or rsi_gap < -self.rsi_ema_gap_threshold) and curr_close < curr_ema_slow and curr_close < curr_ema_trend:
                     df.loc[df.index[i],'signal'] = 'buy'
-                    orders[df.index[i]] = Order(stop_loss=curr_close - (curr_atr * self.stop_mult))
+                    #orders[df.index[i]] = Order(stop_loss=curr_close - (curr_atr * self.stop_mult))
                     position_state='long'
+                    entry_rsi_ema = curr_rsi_ema
+                    entry_price = curr_close
 
                 # Entry: go short
                 elif (curr_rsi > self.top_threshold or rsi_gap > self.rsi_ema_gap_threshold) and curr_close > curr_ema_slow and curr_close > curr_ema_trend:
                     df.loc[df.index[i],'signal'] = 'short'
-                    orders[df.index[i]] = Order(stop_loss=curr_close + (curr_atr * self.stop_mult))
+                    #orders[df.index[i]] = Order(stop_loss=curr_close + (curr_atr * self.stop_mult))
                     position_state='short'
+                    entry_rsi_ema = curr_rsi_ema
+                    entry_price = curr_close
 
             elif position_state == 'long':
-                # Exit long: RSI reverts back to EMA
-                if curr_rsi >= curr_rsi_ema:
+                # Exit long: RSI reverts and price confirms profit
+                if curr_rsi >= entry_rsi_ema and curr_close >= entry_price:
                     df.loc[df.index[i],'signal'] = 'sell'
                     position_state = None
-                
+
             elif position_state == 'short':
-                # Exit Short: RSI reverts back to EMA
-                if curr_rsi <= curr_rsi_ema:
+                # Exit short: RSI reverts and price confirms profit
+                if curr_rsi <= entry_rsi_ema and curr_close <= entry_price:
                     df.loc[df.index[i],'signal'] = 'cover'
                     position_state = None
 

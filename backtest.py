@@ -123,13 +123,15 @@ class BacktestEngine:
         """Return the equity contribution of a single position."""
         if symbol in all_signals and date in all_signals[symbol].index:
             current_price = all_signals[symbol].loc[date]['close']
-            if pos['direction'] == 'long':
-                return pos['shares'] * current_price
-            else:
-                # Short equity: original proceeds + unrealized P&L
-                return pos['shares'] * (2 * pos['entry_price'] - current_price)
         else:
-            return pos['shares'] * pos['entry_price']
+            current_price = pos['entry_price']
+
+        if pos['direction'] == 'long':
+            return pos['shares'] * current_price
+        else:
+            # Short: cash already includes sale proceeds, so position
+            # contribution is the negative liability (cost to cover)
+            return -(pos['shares'] * current_price)
 
     def _force_close(self,symbol:str,all_signals:dict) -> None:
         """Force close a position at end of data."""

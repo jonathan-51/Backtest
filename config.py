@@ -13,8 +13,8 @@ class BacktestConfig:
     commission_rate: float = 0.0
     slippage: float = 0.0001
     spreads: float = 0.01
-    position_size: float = 0.16
-    max_positions: int = 6
+    position_size: float = 0.9
+    max_positions: int = 1
 
     def __post_init__(self):
         if self.initial_capital <= 0:
@@ -31,10 +31,10 @@ class DataConfig:
     symbols: List[str] = field(default_factory=lambda: [
     'QQQ',    # Nasdaq-100 ETF
 ])
-    timeframes: List[str] = field(default_factory=lambda: ['1m'])
+    timeframes: List[str] = field(default_factory=lambda: ['1h'])
     data_path: str = './data'
     cache_data:bool = True
-    lookback_period: str = "6 M"
+    lookback_period: str = "5 Y"
     end_date: datetime = datetime(2025,1,1)
     min_bars_required: int = 20
 
@@ -92,11 +92,11 @@ class RSIPullbackUptrendConfig:
 @dataclass
 class WalkForwardValidatorConfig:
     """Configuration for walk-forward validation"""
-    timeframe: str = '1d'
+    timeframe: str = '1h'
     warm_up_bars: int = 200
-    train_bars: int = 700
-    test_bars: int = 200
-    min_remaining_bars: int = 50
+    train_bars: int = 2000
+    test_bars: int = 700
+    min_remaining_bars: int = 200
     avg_degradation_threshold_pass: float = -0.25
     avg_degradation_threshold_marginal: float = -0.50
 
@@ -173,13 +173,19 @@ class EMAConsolidationBreakoutOptimizerConfig:
 
 @dataclass
 class RSIMeanReversionConfig:
-    timeframe: str = '1m'
+    timeframe: str = '1h'
     top_threshold: int = 70
     bottom_threshold: int = 30
     rsi_ema_length: int = 14
     rsi_length: int = 14
-    rsi_ema_gap_threshold: float = 15  # |RSI - EMA(RSI)| threshold for entry
+    rsi_ema_gap_threshold: float = 5  # |RSI - EMA(RSI)| threshold for entry
     ema_slow_length: int = 20
     ema_trend_length: int = 50
     atr_length: int = 14
     stop_mult: float = 2.0
+
+@dataclass
+class RSIMeanReversionOptimizerConfig:
+    rsi_ema_length: list = field(default_factory=lambda: [10, 14, 20])
+    top_threshold: list = field(default_factory=lambda: [65, 70, 75])
+    bottom_threshold: list = field(default_factory=lambda: [25, 30, 35])

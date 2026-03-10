@@ -1,5 +1,5 @@
 from dataclasses import asdict
-from config import DataConfig, DataFetcherConfig, BacktestConfig, MetricsConfig, MonteCarloConfig, ATRChannelBreakoutConfig,RSIPullbackUptrendConfig, WalkForwardValidatorConfig,ATRChannelBreakoutOptimizerConfig,RSIPullbackOptimizerConfig,EMAConsolidationBreakoutConfig,RegimeFilterConfig,RSIMeanReversionConfig
+from config import DataConfig, DataFetcherConfig, BacktestConfig, MetricsConfig, MonteCarloConfig, ATRChannelBreakoutConfig,RSIPullbackUptrendConfig, WalkForwardValidatorConfig,ATRChannelBreakoutOptimizerConfig,RSIPullbackOptimizerConfig,EMAConsolidationBreakoutConfig,RegimeFilterConfig,RSIMeanReversionConfig,RSIMeanReversionOptimizerConfig
 import logging
 from data_fetcher import DataFetcher
 from backtest import BacktestEngine
@@ -187,7 +187,7 @@ def optimize(Strategy, param_grid) -> None:
         return
 
     # Fetch regime ETF data and inject into each symbol's data dict
-    _inject_regime_data(fetcher,data)
+    #_inject_regime_data(fetcher,data)
 
     optimizer = WalkForwardOptimizer(Strategy, param_grid, data)
     results = optimizer.run()
@@ -204,4 +204,4 @@ if __name__ == "__main__":
     main(RSIMeanReversion,RSIMeanReversionConfig)
     #main(EMAConsolidationBreakout,EMAConsolidationBreakoutConfig)
     #validate(EMAConsolidationBreakout)
-    #optimize(EMAConsolidationBreakout, asdict(ATRChannelBreakoutOptimizerConfig()))
+    #optimize(RSIMeanReversion, asdict(RSIMeanReversionOptimizerConfig()))

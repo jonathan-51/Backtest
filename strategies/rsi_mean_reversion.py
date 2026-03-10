@@ -54,7 +54,7 @@ class RSIMeanReversion(Strategy):
             
             if position_state is None:
                 # Entry: go long
-                if (curr_rsi < self.bottom_threshold or rsi_gap < -self.rsi_ema_gap_threshold) and curr_close < curr_ema_slow and curr_close < curr_ema_trend:
+                if curr_rsi < self.bottom_threshold:
                     df.loc[df.index[i],'signal'] = 'buy'
                     #orders[df.index[i]] = Order(stop_loss=curr_close - (curr_atr * self.stop_mult))
                     position_state='long'
@@ -62,7 +62,7 @@ class RSIMeanReversion(Strategy):
                     entry_price = curr_close
 
                 # Entry: go short
-                elif (curr_rsi > self.top_threshold or rsi_gap > self.rsi_ema_gap_threshold) and curr_close > curr_ema_slow and curr_close > curr_ema_trend:
+                elif curr_rsi > self.top_threshold:
                     df.loc[df.index[i],'signal'] = 'short'
                     #orders[df.index[i]] = Order(stop_loss=curr_close + (curr_atr * self.stop_mult))
                     position_state='short'

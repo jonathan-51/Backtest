@@ -1,49 +1,60 @@
 # Backtest
 
-A Python-based backtesting framework for trading strategies using Interactive Brokers data.
+A Python backtesting framework for evaluating trading strategies against historical market data sourced from Interactive Brokers.
 
-### Prerequisites
+## Features
+
+- Long and short selling support
+- Configurable slippage, commissions, and spread modeling
+- Stop-loss, trailing stop, and take-profit order types
+- Multi-symbol and multi-timeframe support
+- Walk-forward validation
+- Monte Carlo simulation
+- Market regime filtering
+- Performance metrics and equity curve visualization
+
+## Prerequisites
+
 - Python 3.8+
-- Interactive Brokers account (for Historical data)
+- Interactive Brokers TWS or IB Gateway (for fetching historical data)
 
-### Installation
+## Installation
 
 1. Clone the repository
-2. Create a virtual environment: 
-    python -m venv venv
-
-3. Activate the virtual environment:
-   - Windows: `venv\Scripts\activate`
-   - Mac/Linux: `source venv/bin/activate`
-
-4. Install dependencies:
-    pip install -r requirements.txt
-
-
-5. Create a `.env` file for IB credentials (if needed):
-   IB_HOST=127.0.0.1
-   IB_PORT=7497
-   IB_CLIENT_ID=1
+2. Create and activate a virtual environment:
+   ```
+   python -m venv venv
+   venv\Scripts\activate        # Windows
+   source venv/bin/activate     # Mac/Linux
+   ```
+3. Install dependencies:
+   ```
+   pip install -r requirements.txt
+   ```
 
 ## Project Structure
+
+```
 Backtest/
-├── backtest.py          # Core backtesting engine
 ├── run.py               # Main entry point
-├── config.py            # Configuration settings
+├── backtest.py          # Core backtesting engine
+├── config.py            # Configuration for all modules
+├── order.py             # Order types (stop-loss, trailing, take-profit)
+├── data_fetcher.py      # IB historical data retrieval
 ├── indicators.py        # Technical indicators
-├── analytics.py         # Performance analytics
+├── metrics.py           # Performance metrics
+├── monte_carlo.py       # Monte Carlo trade resampling
+├── regime_filter.py     # Market regime scoring
+├── validation.py        # Walk-forward validation
+├── visualizer.py        # Equity curve and result plotting
 ├── strategies/          # Trading strategies
-│   └── undercut_breakout.py
-├── data/                # Historical data storage
-└── requirements.txt     # Python dependencies
+│   └── base.py          # Abstract strategy interface
+└── data/                # Cached historical data
+```
 
-## Adding New Strategies
+## Adding a Strategy
 
-1. Create a new file in `strategies/` folder
-2. Implement your strategy class with required methods
-3. Import and register it in `run.py`
-4. Configure parameters in `config.py`
-
-## Available Strategies
-
-- **Undercut Breakout**: Identifies breakout patterns with undercut confirmation
+1. Create a new file in `strategies/`
+2. Subclass `Strategy` from `strategies/base.py` and implement `generate_signals()`
+3. Add configuration parameters to `config.py`
+4. Import and use the strategy in `run.py`

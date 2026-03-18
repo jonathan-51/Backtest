@@ -13,7 +13,6 @@ venv/
 *.pyw
 notes/
 logs/
-scratch.py
 
 # IDE files
 .vscode/
@@ -29,4 +28,3 @@ Thumbs.db
 
 # Data files (cached market data)
 data/
-

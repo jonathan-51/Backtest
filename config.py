@@ -10,7 +10,7 @@ class BacktestConfig:
     
     
     initial_capital: float = 30000
-    commission_rate: float = 0.0
+    commission_rate: float = 0.0005
     slippage: float = 0.0001
     spreads: float = 0.01
     position_size: float = 0.9
@@ -58,3 +58,5 @@ class SMACrossoverConfig:
     fast_length: int = 20
     slow_length: int = 50
     timeframe: str = '1d'
+    stop_loss_percent: float = 0.01
+    take_profit_percent: float = 0.02

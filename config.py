@@ -51,3 +51,10 @@ class DataFetcherConfig:
     tws_port: int = 7497
     client_id: int = 1
     request_pause: int = 11
+
+@dataclass
+class SMACrossoverConfig:
+    """Configuration for SMA Crossover Strategy"""
+    fast_length: int = 20
+    slow_length: int = 50
+    timeframe: str = '1d'

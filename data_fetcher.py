@@ -56,7 +56,14 @@ class DataFetcher:
         return all_data
 
     def fetch_all_timeframes(self,symbol:str) -> Dict[str,pd.DataFrame]:
-        """Fetch all configured timeframes for a symbol, returning a dict keyed by timeframe."""
+        """Fetch all configured timeframes for a symbol, returning a dict keyed by timeframe.
+        
+        {
+        "Ticker": {"1h": DataFrame(date, open, high, low, close, volume),"1d": DataFrame(...)},
+        "Ticker": {"1h": DataFrame(...),"1d": DataFrame(...)}
+        }
+
+        """
         results = {}
         timeframes = self.data_config.timeframes
 

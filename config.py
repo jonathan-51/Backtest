@@ -10,7 +10,7 @@ class BacktestConfig:
     
     
     initial_capital: float = 30000
-    commission_rate: float = 0.0005
+    commission_rate: float = 0.005
     slippage: float = 0.0001
     spreads: float = 0.01
     position_size: float = 0.9

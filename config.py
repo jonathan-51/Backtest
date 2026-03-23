@@ -28,11 +28,11 @@ class DataConfig:
     Configuration for market data retrieval including 
     ticker symbols, timeframe, storage path, and date range
     """
-    symbols: List[str] = field(default_factory=lambda: ['XOM','KOS'])
-    timeframes: List[str] = field(default_factory=lambda: ['1h'])
+    symbols: List[str] = field(default_factory=lambda: ['XOM'])
+    timeframes: List[str] = field(default_factory=lambda: ['1d'])
     data_path: str = './data'
     cache_data:bool = True
-    lookback_period: str = "1 Y"
+    lookback_period: str = "5 Y"
     end_date: datetime = datetime(2025,1,1)
     min_bars_required: int = 20
 

@@ -8,13 +8,12 @@ class BacktestEngine:
     """Simulates trading strategy execution against historical data"""
     def __init__(self,config:BacktestConfig,strategy:Strategy):
         self.config = config
-        self.strategy = strategy()
+        self.strategy = strategy
         self.logger = logging.getLogger(__name__)
 
         self.capital = self.config.initial_capital
         self.position = {}
         self.trade_log = []
-        self.equity_curve = []
 
     def run(self,data:Dict[str,pd.DataFrame]) -> dict:
         """Execute strategy signals against historical data and return results."""
@@ -23,7 +22,6 @@ class BacktestEngine:
         for symbol,timeframes in data.items():
 
             df, orders = self.strategy.generate_signals(timeframes)
-
             # Loop through all rows from each timeframe per symbol
             for i, row in df.iterrows():
                 price = row['close']
@@ -70,6 +68,11 @@ class BacktestEngine:
                         }
                     else:
                         self._add_exits()
+        
+        # Build results
+        results = self._build_results()
+
+        return results
 
     def _check_exits(self,price,symbol,date):
         """Check if current price triggers stop-loss or take-profit.
@@ -115,16 +118,18 @@ class BacktestEngine:
 
         # How much capital we're willing to lose on this trade
         risk_val = self.capital * self.strategy.stop_loss_percent
-
-        # Convert capital risk into a price movement percentage
-        position_size_risk_percent = (self.position['shares'] * self.position['entry_price']) / risk_val
+        
+        # Risk value per share
+        risk_per_share = risk_val / self.position['shares']
 
         if self.position['direction'] == 'long':
-            stop_loss = self.position['entry_price'] - (self.position['entry_price'] * position_size_risk_percent)
-            take_profit = self.position['entry_price'] + (2 * self.position['entry_price'] * position_size_risk_percent)
+            # Long: SL below entry, TP above entry (2:1 RRR)
+            stop_loss = self.position['entry_price'] - risk_per_share
+            take_profit = self.position['entry_price'] + 2 * risk_per_share
         else:
-            stop_loss = self.position['entry_price'] + (self.position['entry_price'] * position_size_risk_percent)
-            take_profit = self.position['entry_price'] - (2 * self.position['entry_price'] * position_size_risk_percent)
+            # Short: SL above entry, TP below entry (2:1 RRR)
+            stop_loss = self.position['entry_price'] + risk_per_share
+            take_profit = self.position['entry_price'] - 2 * risk_per_share
 
         self.position = {
             **self.position,
@@ -153,6 +158,7 @@ class BacktestEngine:
         # Total cost and commission for this trade
         cost = shares * fill_price
         commission = self._calculate_commission(shares)
+
 
         if cost + commission > self.capital:
             self.logger.warning(f"Insufficient cash for {symbol}: need {cost+commission:.2f}, have {self.capital:.2f}")
@@ -223,3 +229,50 @@ class BacktestEngine:
         else:
             return commission
         
+    def _build_results(self) -> dict:
+        """Package trade log"""
+
+        if not self.trade_log:
+            return {
+                'trade_log': [],
+                'equity_curve': [],
+                'summary': {
+                    'total_trades': 0,
+                    'winning_trades': 0,
+                    'losing_trades': 0,
+                    'win_rate': 0,
+                    'total_pnl': 0,
+                    'return_pct': 0,
+                    'final_equity': self.config.initial_capital
+                }
+            }
+
+        # Convert list of dicts to Panda's Dataframe, each unique key is a column header and each entry is a row
+        df = pd.DataFrame(self.trade_log)
+
+        # Calculate the cumulative equity curve
+        equity_curve = self.config.initial_capital + df['pnl'].cumsum()
+
+        # Creating an equity curve dataframe
+        equity_df = pd.DataFrame({
+            'date':df['exit_date'],
+            'equity':equity_curve,
+        })
+
+        # Convert pandas' dataframe to a list of dicts, where each row is one dictionary.
+        equity_list = equity_df.to_dict('records')
+        
+
+        return {
+            'trade_log':self.trade_log,
+            'equity_curve':equity_list,
+            'summary': {
+                'total_trades':len(self.trade_log),
+                'winning_trades': (df['pnl'] > 0).sum(),
+                'losing_trades': (df['pnl'] < 0).sum(),
+                'win_rate': (df['pnl'] > 0).sum() / len(self.trade_log) if self.trade_log else 0,
+                'total_pnl':df['pnl'].sum(),
+                'return_pct':df['pnl'].sum() / self.config.initial_capital,
+                'final_equity': equity_curve.iloc[-1]
+            }
+        }

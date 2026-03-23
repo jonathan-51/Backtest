@@ -1,6 +1,8 @@
 from data_fetcher import DataFetcher
-from config import DataConfig, DataFetcherConfig
+from config import DataConfig, DataFetcherConfig, BacktestConfig, SMACrossoverConfig
 import logging
+from backtest import BacktestEngine
+from strategy.SMA_Crossover import SMACrossover
 
 # Configure Logging
 logging.basicConfig(
@@ -19,11 +21,21 @@ def main(Strategy,StrategyConfig) -> None:
 
     # Create fetcher
     fetcher = DataFetcher(data_fetcher_config,data_config)
+    
+    # Create backtest engine
+    backtest = BacktestEngine(BacktestConfig(),Strategy())
 
     # Fetch data for all symbols
     all_data = fetcher.fetch_all_symbols()   
 
+    if not all_data:
+        return
+    
+    # Run backtest
+    results = backtest.run(all_data)
+
+    print(results['summary']['final_equity'])
     return
 
 if __name__ == "__main__":
-    main(None,None)
+    main(SMACrossover,SMACrossoverConfig)

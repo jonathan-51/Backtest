@@ -1,5 +1,5 @@
 import pandas as pd
-from base import Strategy
+from strategy.base import Strategy
 from config import SMACrossoverConfig
 from typing import Dict
 from indicators import Indicators

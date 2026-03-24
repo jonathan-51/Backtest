@@ -32,7 +32,7 @@ def main(Strategy,StrategyConfig) -> None:
         return
     
     # Run backtest
-    results = backtest.run(all_data)
+    results = backtest.run(all_data,StrategyConfig())
 
     print(results['summary']['final_equity'])
     return

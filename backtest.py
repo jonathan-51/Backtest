@@ -3,6 +3,7 @@ from config import BacktestConfig
 from strategy.base import Strategy
 import logging
 from typing import Dict
+from order import Position
 
 class BacktestEngine:
     """Simulates trading strategy execution against historical data"""
@@ -13,68 +14,106 @@ class BacktestEngine:
 
         self.capital = self.config.initial_capital
         self.position = {}
+        self.equity_curve = []
         self.trade_log = []
 
-    def run(self,data:Dict[str,pd.DataFrame]) -> dict:
+    def run(self,data:Dict[str,pd.DataFrame],strategy_config) -> dict:
         """Execute strategy signals against historical data and return results."""
+        self.strategy_config = strategy_config
 
         # Loop through all symbols in dictionary
         for symbol,timeframes in data.items():
-
-            df, orders = self.strategy.generate_signals(timeframes)
+            
+            df, orders = self.strategy.generate_signals(timeframes,self.strategy_config)
             # Loop through all rows from each timeframe per symbol
             for i, row in df.iterrows():
                 price = row['close']
+                high = row['high']
+                low = row['low']
                 signal = row['signal']
                 date = row['date']
 
                 # Check for stops
                 if self.position:
                     # Check for stop-loss / take-profit
-                    self._check_exits(price,symbol,date)
+                    self._check_exits(price,high,low,symbol,date)
+
 
                 # Enter long position
                 if (not self.position and signal == 'buy'):
-                    self.position = {
-                        'entry_date':date,
-                        'direction':'long'}
+                    direction = 'long'
                     
                     
-                    self._execute_buy(symbol,price,date)
+                    shares,fill_price,commission = self._enter_position(symbol,price,date,'buy')
+
+                    if shares is None:
+                        continue
 
                     if i in orders:
-                        self.position = {
-                            **self.position,
-                            'stop_loss':orders[i].stop_loss,
-                            'take_profit':orders[i].take_profit
-                        }
+                        stop_loss=orders[i].stop_loss
+                        take_profit=orders[i].take_profit
+
                     else:
-                        self._add_exits()
+                        stop_loss,take_profit = self._add_exits(shares,direction,fill_price)
+                    
+                    self.position = Position(
+                        symbol=symbol,
+                        direction=direction,
+                        entry_date=date,
+                        entry_price=fill_price,
+                        shares=shares,
+                        commission_in=commission,
+                        stop_loss=stop_loss,
+                        take_profit=take_profit,
+                    )
                 
                 # Enter short position
                 elif (not self.position and signal == 'short'):
-
-                    self.position = {
-                        'entry_date':date,
-                        'direction':'short'}
+                    direction = 'short'
                     
-                    self._execute_short(symbol,price,date)
+                    shares,fill_price,commission = self._enter_position(symbol,price,date,'short')
+
+                    if shares is None:
+                        continue
 
                     if i in orders:
-                        self.position = {
-                            **self.position,
-                            'stop_loss':orders[i].stop_loss,
-                            'take_profit':orders[i].take_profit
-                        }
+                        stop_loss=orders[i].stop_loss
+                        take_profit=orders[i].take_profit
+
                     else:
-                        self._add_exits()
+                        stop_loss,take_profit = self._add_exits(shares,direction,fill_price)
+                    
+                    self.position = Position(
+                        symbol=symbol,
+                        direction=direction,
+                        entry_date=date,
+                        entry_price=fill_price,
+                        shares=shares,
+                        commission_in=commission,
+                        stop_loss=stop_loss,
+                        take_profit=take_profit,
+                    )
+                self._log_equity(price,date)
         
         # Build results
         results = self._build_results()
 
         return results
 
-    def _check_exits(self,price,symbol,date):
+    def _log_equity(self,price,date):
+        
+        if self.position:
+            multiplier = -1 if self.position.direction == 'short' else 1
+
+            entry_position_size = self.position.shares * self.position.entry_price
+            unrealized_pnl = multiplier * self.position.shares * (price - self.position.entry_price)
+            market_value = entry_position_size + unrealized_pnl
+            
+            self.equity_curve.append({'date':date,'equity':self.capital + market_value})
+        else:
+            self.equity_curve.append({'date':date,'equity':self.capital})
+    
+    def _check_exits(self,price,high,low,symbol,date):
         """Check if current price triggers stop-loss or take-profit.
         If hit, calculate PnL, log the trade, update capital, and clear position."""
         if not self.position:
@@ -82,64 +121,58 @@ class BacktestEngine:
         hit = False
 
         # Check if price breached SL or TP
-        if self.position['direction'] == 'long':
-            if price >= self.position['take_profit'] or price <= self.position['stop_loss']:
+        if self.position.direction == 'long':
+            if high >= self.position.take_profit or low <= self.position.stop_loss:
                 hit = True
         else:
-            if price <= self.position['take_profit'] or price >= self.position['stop_loss']:
+            if low <= self.position.take_profit or high >= self.position.stop_loss:
                 hit = True
 
         if hit:
             # Calculate PnL: positive for profitable trades, negative for losses
-            multiplier = 1 if self.position['direction'] == 'long' else -1
-            pnl = multiplier * (price - self.position['entry_price']) * self.position['shares']
+            multiplier = 1 if self.position.direction == 'long' else -1
+            pnl = multiplier * (price - self.position.entry_price) * self.position.shares
 
             # Log completed trade
             self.trade_log.append({
                     'symbol':symbol,
-                    'direction':self.position['direction'],
-                    'entry_date':self.position['entry_date'],
+                    'direction':self.position.direction,
+                    'entry_date':self.position.entry_date,
                     'exit_date':date,
-                    'entry_price':self.position['entry_price'],
+                    'entry_price':self.position.entry_price,
                     'exit_price':price,
-                    'shares': self.position['shares'],
+                    'shares': self.position.shares,
                     'pnl':pnl,
-                    'commission':self.position['commission_in']*2,
+                    'commission':self.position.commission_in*2,
                 })
 
             # Update capital and clear position
-            self.capital += pnl
+            self.capital += pnl - self.position.commission_in + self.position.entry_price * self.position.shares
             self.position = {}
         return
 
-    def _add_exits(self):
+    def _add_exits(self,shares,direction,fill_price):
         """Calculate capital-based SL/TP when the strategy doesn't provide per-trade exits.
         Risk is a percentage of current capital."""
 
         # How much capital we're willing to lose on this trade
-        risk_val = self.capital * self.strategy.stop_loss_percent
+        risk_val = self.capital * self.strategy_config.stop_loss_percent
         
         # Risk value per share
-        risk_per_share = risk_val / self.position['shares']
+        risk_per_share = risk_val / shares
 
-        if self.position['direction'] == 'long':
+        if direction == 'long':
             # Long: SL below entry, TP above entry (2:1 RRR)
-            stop_loss = self.position['entry_price'] - risk_per_share
-            take_profit = self.position['entry_price'] + 2 * risk_per_share
+            stop_loss = fill_price - risk_per_share
+            take_profit = fill_price + 2 * risk_per_share
         else:
             # Short: SL above entry, TP below entry (2:1 RRR)
-            stop_loss = self.position['entry_price'] + risk_per_share
-            take_profit = self.position['entry_price'] - 2 * risk_per_share
+            stop_loss = fill_price + risk_per_share
+            take_profit = fill_price - 2 * risk_per_share
 
-        self.position = {
-            **self.position,
-            'stop_loss': stop_loss,
-            'take_profit': take_profit
-        }
+        return stop_loss,take_profit
 
-        return
-
-    def _execute_buy(self,symbol:str,price:float,date:str):
+    def _enter_position(self,symbol:str,price:float,date:str,signal:str):
         """Open a long position.
         Calculates fill price (with slippage/spreads), number of shares,
         commission, and updates the position dict."""
@@ -147,13 +180,13 @@ class BacktestEngine:
         # Budget available for this position
         position_size = self.capital * self.config.position_size
         # Simulate real fill price: market price + slippage + spread
-        fill_price = self._apply_slippage(price,'buy')
+        fill_price = self._apply_slippage(price,signal)
         # Maximum whole shares we can afford
         shares = int(position_size // fill_price)
 
         if shares <= 0:
             self.logger.warning(f"Insufficient budget to buy {symbol} at {price:.2f} on {date}")
-            return
+            return None, None, None
 
         # Total cost and commission for this trade
         cost = shares * fill_price
@@ -162,45 +195,11 @@ class BacktestEngine:
 
         if cost + commission > self.capital:
             self.logger.warning(f"Insufficient cash for {symbol}: need {cost+commission:.2f}, have {self.capital:.2f}")
-            return
+            return None, None, None
+        
+        self.capital -= (cost + commission)
 
-        self.position = {
-            **self.position,
-            'shares':shares,
-            'entry_price':fill_price,
-            'commission_in':commission,
-        }
-
-    def _execute_short(self,symbol:str,price:float,date:str):
-        """Open a short position.
-        Calculates fill price (with slippage/spreads), number of shares,
-        commission, and updates the position dict."""
-
-        # Budget available for this position
-        position_size = self.capital * self.config.position_size
-        # Simulate real fill price: market price - slippage - spread
-        fill_price = self._apply_slippage(price,'sell')
-        # Maximum whole shares we can afford
-        shares = int(position_size // fill_price)
-
-        if shares <= 0:
-            self.logger.warning(f"Insufficient budget to short {symbol} at {price:.2f} on {date}")
-            return
-
-        # Total cost and commission for this trade
-        cost = shares * fill_price
-        commission = self._calculate_commission(shares)
-
-        if cost + commission > self.capital:
-            self.logger.warning(f"Insufficient cash for {symbol}: need {cost+commission:.2f}, have {self.capital:.2f}")
-            return
-
-        self.position = {
-            **self.position,
-            'shares':shares,
-            'entry_price':fill_price,
-            'commission_in':commission,
-        }
+        return shares,fill_price,commission
     
     def _apply_slippage(self,stock_price:float,direction:str) -> float:
         """Simulate slippage: buying pushes price up, selling pushes price down."""
@@ -250,22 +249,9 @@ class BacktestEngine:
         # Convert list of dicts to Panda's Dataframe, each unique key is a column header and each entry is a row
         df = pd.DataFrame(self.trade_log)
 
-        # Calculate the cumulative equity curve
-        equity_curve = self.config.initial_capital + df['pnl'].cumsum()
-
-        # Creating an equity curve dataframe
-        equity_df = pd.DataFrame({
-            'date':df['exit_date'],
-            'equity':equity_curve,
-        })
-
-        # Convert pandas' dataframe to a list of dicts, where each row is one dictionary.
-        equity_list = equity_df.to_dict('records')
-        
-
         return {
             'trade_log':self.trade_log,
-            'equity_curve':equity_list,
+            'equity_curve':pd.DataFrame(self.equity_curve),
             'summary': {
                 'total_trades':len(self.trade_log),
                 'winning_trades': (df['pnl'] > 0).sum(),
@@ -273,6 +259,6 @@ class BacktestEngine:
                 'win_rate': (df['pnl'] > 0).sum() / len(self.trade_log) if self.trade_log else 0,
                 'total_pnl':df['pnl'].sum(),
                 'return_pct':df['pnl'].sum() / self.config.initial_capital,
-                'final_equity': equity_curve.iloc[-1]
+                'final_equity': self.equity_curve[-1]['equity']
             }
         }

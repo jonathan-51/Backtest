@@ -20,12 +20,19 @@ class SMACrossover(Strategy):
         self.take_profit_percent = take_profit_percent
         self.indicator = Indicators()
 
-    def generate_signals(self, data:Dict[str,pd.DataFrame]) -> tuple[pd.DataFrame,dict]:
-        df = data[self.timeframe].copy()
+    def generate_signals(self, data:Dict[str,pd.DataFrame],config) -> tuple[pd.DataFrame,dict]:
+
+        sma_slow_length = config.slow_length
+        sma_fast_length = config.fast_length
+        stop_loss_percent = config.stop_loss_percent
+        take_profit_percent = config.take_profit_percent
+        timeframe = config.timeframe
+
+        df = data[timeframe].copy()
 
         # Computing indicators
-        df['sma_slow'] = self.indicator.sma(df['close'],self.sma_slow_length)
-        df['sma_fast'] = self.indicator.sma(df['close'],self.sma_fast_length)
+        df['sma_slow'] = self.indicator.sma(df['close'],sma_slow_length)
+        df['sma_fast'] = self.indicator.sma(df['close'],sma_fast_length)
 
         # Initializing signals
         df['signal'] = 'hold_cash'

@@ -53,6 +53,12 @@ class DataFetcherConfig:
     request_pause: int = 11
 
 @dataclass
+class MetricsConfig:
+    risk_free_rate: float = 0.02
+    trading_days: float = 252
+    calendar_days: float = 365
+
+@dataclass
 class SMACrossoverConfig:
     """Configuration for SMA Crossover Strategy"""
     fast_length: int = 20

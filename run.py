@@ -1,8 +1,9 @@
 from data_fetcher import DataFetcher
-from config import DataConfig, DataFetcherConfig, BacktestConfig, SMACrossoverConfig
+from config import DataConfig, DataFetcherConfig, BacktestConfig, SMACrossoverConfig, MetricsConfig
 import logging
 from backtest import BacktestEngine
 from strategy.SMA_Crossover import SMACrossover
+from metrics import PerformanceMetrics
 
 # Configure Logging
 logging.basicConfig(
@@ -18,6 +19,7 @@ def main(Strategy,StrategyConfig) -> None:
     # Initialize configs
     data_config = DataConfig()
     data_fetcher_config = DataFetcherConfig()
+    metric_config = MetricsConfig()
 
     # Create fetcher
     fetcher = DataFetcher(data_fetcher_config,data_config)
@@ -34,7 +36,12 @@ def main(Strategy,StrategyConfig) -> None:
     # Run backtest
     results = backtest.run(all_data,StrategyConfig())
 
-    print(results['summary']['final_equity'])
+    # Create metrics engine
+    get_metrics = PerformanceMetrics(results,metric_config)
+
+    metrics = get_metrics.generate_metrics()
+
+    print(metrics)
     return
 
 if __name__ == "__main__":
